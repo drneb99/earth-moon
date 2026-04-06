@@ -156,7 +156,214 @@
     // Ambient fill
     scene.add(new THREE.AmbientLight(0x111122, 0.4));
 
-    // PLACEHOLDER: astronomy engine goes here
+    // ── Astronomy Engine (Meeus Ch. 47) ─────────────────────────────────────────
+    const astronomyEngine = {
+      toRad: d => d * Math.PI / 180,
+      toDeg: r => r * 180 / Math.PI,
+      norm: d => ((d % 360) + 360) % 360,
+
+      julianDay(date) {
+        let y = date.getUTCFullYear();
+        let m = date.getUTCMonth() + 1;
+        const d = date.getUTCDate() +
+          (date.getUTCHours() * 3600 + date.getUTCMinutes() * 60 + date.getUTCSeconds()) / 86400;
+        if (m <= 2) { y--; m += 12; }
+        const A = Math.floor(y / 100);
+        const B = 2 - A + Math.floor(A / 4);
+        return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + d + B - 1524.5;
+      },
+
+      getMoonState(date) {
+        const JD  = this.julianDay(date);
+        const T   = (JD - 2451545.0) / 36525;
+        const T2  = T * T;
+
+        // Fundamental arguments (degrees, normalized 0-360)
+        const Lp = this.norm(218.3164477 + 481267.88123421*T - 0.0015786*T2); // Moon mean longitude
+        const D  = this.norm(297.8501921 + 445267.1114034 *T - 0.0018819*T2); // Moon mean elongation
+        const M  = this.norm(357.5291092 + 35999.0502909  *T - 0.0001536*T2); // Sun mean anomaly
+        const Mp = this.norm(134.9633964 + 477198.8675055 *T + 0.0087414*T2); // Moon mean anomaly
+        const F  = this.norm(93.2720950  + 483202.0175233 *T - 0.0036539*T2); // Moon arg of latitude
+        const Om = this.norm(125.0445479 - 1934.1362608   *T + 0.0020754*T2); // Ascending node
+
+        // Eccentricity correction for solar terms
+        const E  = 1 - 0.002516*T - 0.0000074*T2;
+        const E2 = E * E;
+
+        const Dr = this.toRad(D), Mr = this.toRad(M), Mpr = this.toRad(Mp);
+        const Fr = this.toRad(F), Omr = this.toRad(Om);
+
+        // Longitude + distance terms (Meeus Table 45.A)
+        // [D, M, M', F, sumL_coeff (x1e-6 deg), sumR_coeff (x0.001 km)]
+        const lrTerms = [
+          [0, 0, 1, 0,  6288774, -20905355],
+          [2, 0,-1, 0,  1274027,  -3699111],
+          [2, 0, 0, 0,   658314,  -2955968],
+          [0, 0, 2, 0,   213618,   -569925],
+          [0, 1, 0, 0,  -185116,     48888],
+          [0, 0, 0, 2,  -114332,     -3149],
+          [2, 0,-2, 0,    58793,    246158],
+          [2,-1,-1, 0,    57066,   -152138],
+          [2, 0, 1, 0,    53322,   -170733],
+          [2,-1, 0, 0,    45758,   -204586],
+          [0, 1,-1, 0,   -40923,   -129620],
+          [1, 0, 0, 0,   -34720,    108743],
+          [0, 1, 1, 0,   -30383,    104755],
+          [2, 0, 0,-2,    15327,     10321],
+          [0, 0, 1, 2,   -12528,         0],
+          [0, 0, 1,-2,    10980,     79661],
+          [4, 0,-1, 0,    10675,    -34782],
+          [0, 0, 3, 0,    10034,    -23210],
+          [4, 0,-2, 0,     8548,    -21636],
+          [2, 1,-1, 0,    -7888,     24208],
+          [2, 1, 0, 0,    -6766,     30824],
+          [1, 0,-1, 0,    -5163,     -8379],
+          [1, 1, 0, 0,     4987,    -16675],
+          [2,-1, 1, 0,     4036,    -10034],
+          [2, 0, 2, 0,     3994,    -12831],
+          [4, 0, 0, 0,     3861,    -10445],
+          [2, 0,-3, 0,     3665,    -11650],
+          [0, 1,-2, 0,    -2689,     14403],
+          [2, 0,-1, 2,    -2602,         0],
+          [2,-1,-2, 0,     2390,     10056],
+          [1, 0, 1, 0,    -2348,     -8379],
+          [2,-2, 0, 0,     2236,     -7003],
+          [0, 1, 2, 0,    -2120,         0],
+          [0, 2, 0, 0,    -2069,         0],
+          [2,-2,-1, 0,     2048,         0],
+          [2, 0, 1,-2,    -1773,         0],
+          [2, 0, 0, 2,    -1595,         0],
+          [4,-1,-1, 0,     1215,         0],
+          [0, 0, 2, 2,    -1110,         0],
+        ];
+
+        let sumL = 0, sumR = 0;
+        for (const [d,m,mp,f, cl, cr] of lrTerms) {
+          const arg = d*Dr + m*Mr + mp*Mpr + f*Fr;
+          const eCorr = Math.abs(m) === 2 ? E2 : Math.abs(m) === 1 ? E : 1;
+          sumL += eCorr * cl * Math.sin(arg);
+          sumR += eCorr * cr * Math.cos(arg);
+        }
+        // Additive longitude corrections
+        sumL += 3958 * Math.sin(this.toRad(119.75 + 131.849 * T));
+        sumL += 1962 * Math.sin(this.toRad(Lp) - Fr);
+        sumL +=  318 * Math.sin(this.toRad(53.09 + 479264.29 * T));
+
+        // Latitude terms (Meeus Table 45.B)
+        // [D, M, M', F, sumB_coeff (x1e-6 deg)]
+        const bTerms = [
+          [0, 0, 0, 1,  5128122],
+          [0, 0, 1, 1,   280602],
+          [0, 0, 1,-1,   277693],
+          [2, 0, 0,-1,   173237],
+          [2, 0,-1, 1,    55413],
+          [2, 0,-1,-1,    46271],
+          [2, 0, 0, 1,    32573],
+          [0, 0, 2, 1,    17198],
+          [2, 0, 1,-1,     9266],
+          [0, 0, 2,-1,     8822],
+          [2,-1, 0,-1,     8216],
+          [2, 0,-2,-1,     4324],
+          [2, 0, 1, 1,     4200],
+          [2, 1, 0,-1,    -3359],
+          [2,-1,-1, 1,     2463],
+          [2,-1, 0, 1,     2211],
+          [2,-1,-1,-1,     2065],
+          [0, 1,-1,-1,    -1870],
+          [4, 0,-1,-1,     1828],
+          [0, 1, 0, 1,    -1794],
+          [0, 0, 0, 3,    -1749],
+          [0, 1,-1, 1,    -1565],
+          [1, 0, 0, 1,    -1491],
+          [0, 1, 1, 1,    -1475],
+          [0, 1, 1,-1,    -1410],
+          [0, 1, 0,-1,    -1344],
+          [1, 0, 0,-1,    -1335],
+          [0, 0, 3, 1,     1107],
+          [4, 0, 0,-1,     1021],
+          [4, 0,-1, 1,      833],
+        ];
+
+        let sumB = 0;
+        for (const [d,m,mp,f, cb] of bTerms) {
+          const arg = d*Dr + m*Mr + mp*Mpr + f*Fr;
+          const eCorr = Math.abs(m) === 2 ? E2 : Math.abs(m) === 1 ? E : 1;
+          sumB += eCorr * cb * Math.sin(arg);
+        }
+        sumB -= 2235 * Math.sin(this.toRad(Lp));
+        sumB +=  382 * Math.sin(this.toRad(207.14 + 14712.317 * T));
+        sumB +=  175 * Math.sin(this.toRad(119.75 + 131.849 * T) - Fr);
+        sumB +=  175 * Math.sin(this.toRad(119.75 + 131.849 * T) + Fr);
+        sumB +=  127 * Math.sin(this.toRad(Lp) - Mpr);
+        sumB -=  115 * Math.sin(this.toRad(Lp) + Mpr);
+
+        // Geocentric ecliptic coords
+        const lon  = this.norm(Lp + sumL / 1e6);  // degrees
+        const lat  = sumB / 1e6;                   // degrees
+        const dist = 385000.56 + sumR / 1000;      // km
+
+        // 3D position in scene units (1 unit = 10,000 km)
+        // Ecliptic frame: XZ plane = ecliptic plane, Y = ecliptic north
+        const lonR = this.toRad(lon);
+        const latR = this.toRad(lat);
+        const r    = dist / 10000;
+        const scenePos = new THREE.Vector3(
+          r * Math.cos(latR) * Math.cos(lonR),
+          r * Math.sin(latR),
+         -r * Math.cos(latR) * Math.sin(lonR)
+        );
+
+        // Orbital speed (km/s) - vis-viva approximation
+        const a = 384400;
+        const speed = 1.022 * Math.sqrt(a * (2 / dist - 1 / a) / a);
+
+        // Optical libration in longitude (eccentricity term, max +-7.9 degrees)
+        const e = 0.0549;
+        const libration = this.toDeg(Math.atan2(e * Math.sin(Mpr), 1 - e * Math.cos(Mpr)));
+
+        // Phase (0=new, 180=full) based on elongation D
+        const phaseAngle = this.norm(D);
+        let phaseName, phaseIcon;
+        if      (phaseAngle <  22.5) { phaseName = 'New Moon';        phaseIcon = '🌑'; }
+        else if (phaseAngle <  67.5) { phaseName = 'Waxing Crescent'; phaseIcon = '🌒'; }
+        else if (phaseAngle < 112.5) { phaseName = 'First Quarter';   phaseIcon = '🌓'; }
+        else if (phaseAngle < 157.5) { phaseName = 'Waxing Gibbous';  phaseIcon = '🌔'; }
+        else if (phaseAngle < 202.5) { phaseName = 'Full Moon';       phaseIcon = '🌕'; }
+        else if (phaseAngle < 247.5) { phaseName = 'Waning Gibbous';  phaseIcon = '🌖'; }
+        else if (phaseAngle < 292.5) { phaseName = 'Last Quarter';    phaseIcon = '🌗'; }
+        else if (phaseAngle < 337.5) { phaseName = 'Waning Crescent'; phaseIcon = '🌘'; }
+        else                          { phaseName = 'New Moon';        phaseIcon = '🌑'; }
+
+        return { scenePos, distance: dist, speed, libration, phaseName, phaseIcon, lon, lat };
+      },
+
+      getSunDirection(date) {
+        const JD = this.julianDay(date);
+        const T  = (JD - 2451545.0) / 36525;
+        const L0 = this.norm(280.46646 + 36000.76983 * T);
+        const M  = this.norm(357.52911 + 35999.05029 * T);
+        const Mr = this.toRad(M);
+        const C  = (1.914602 - 0.004817*T) * Math.sin(Mr)
+                 + (0.019993 - 0.000101*T) * Math.sin(2*Mr)
+                 +  0.000289                * Math.sin(3*Mr);
+        const sunLon = this.norm(L0 + C);
+        const sl = this.toRad(sunLon);
+        return new THREE.Vector3(Math.cos(sl), 0, -Math.sin(sl)).normalize();
+      }
+    };
+
+    // Temporary verification - remove after checking console
+    {
+      const testDate = new Date('2026-04-06T00:00:00Z');
+      const s = astronomyEngine.getMoonState(testDate);
+      console.log('[AstroEngine] Moon dist km:', s.distance.toFixed(0), '(expect 370000-400000)');
+      console.log('[AstroEngine] Moon lon deg:', s.lon.toFixed(2), '(expect 0-360)');
+      console.log('[AstroEngine] Moon lat deg:', s.lat.toFixed(2), '(expect -5 to +5)');
+      console.log('[AstroEngine] Phase:', s.phaseName);
+      console.log('[AstroEngine] Libration°:', s.libration.toFixed(2), '(expect -7.9 to +7.9)');
+      console.log('[AstroEngine] Speed km/s:', s.speed.toFixed(3), '(expect 0.9-1.1)');
+    }
+
     // PLACEHOLDER: time controller goes here
     // PLACEHOLDER: starfield goes here
     // PLACEHOLDER: earth goes here
