@@ -190,8 +190,7 @@
         const E  = 1 - 0.002516*T - 0.0000074*T2;
         const E2 = E * E;
 
-        const Dr = this.toRad(D), Mr = this.toRad(M), Mpr = this.toRad(Mp);
-        const Fr = this.toRad(F), Omr = this.toRad(Om);
+        const Dr = this.toRad(D), Mr = this.toRad(M), Mpr = this.toRad(Mp), Fr = this.toRad(F);
 
         // Longitude + distance terms (Meeus Table 45.A)
         // [D, M, M', F, sumL_coeff (x1e-6 deg), sumR_coeff (x0.001 km)]
@@ -315,14 +314,14 @@
 
         // Orbital speed (km/s) - vis-viva approximation
         const a = 384400;
-        const speed = 1.022 * Math.sqrt(a * (2 / dist - 1 / a) / a);
+        const speed = 1.022 * Math.sqrt(a * (2 / dist - 1 / a));
 
-        // Optical libration in longitude (eccentricity term, max +-7.9 degrees)
+        // Simplified optical libration in longitude — eccentricity term only (first-order approx, max ~+-3 degrees)
         const e = 0.0549;
         const libration = this.toDeg(Math.atan2(e * Math.sin(Mpr), 1 - e * Math.cos(Mpr)));
 
         // Phase (0=new, 180=full) based on elongation D
-        const phaseAngle = this.norm(D);
+        const phaseAngle = D;
         let phaseName, phaseIcon;
         if      (phaseAngle <  22.5) { phaseName = 'New Moon';        phaseIcon = '🌑'; }
         else if (phaseAngle <  67.5) { phaseName = 'Waxing Crescent'; phaseIcon = '🌒'; }
@@ -351,18 +350,6 @@
         return new THREE.Vector3(Math.cos(sl), 0, -Math.sin(sl)).normalize();
       }
     };
-
-    // Temporary verification - remove after checking console
-    {
-      const testDate = new Date('2026-04-06T00:00:00Z');
-      const s = astronomyEngine.getMoonState(testDate);
-      console.log('[AstroEngine] Moon dist km:', s.distance.toFixed(0), '(expect 370000-400000)');
-      console.log('[AstroEngine] Moon lon deg:', s.lon.toFixed(2), '(expect 0-360)');
-      console.log('[AstroEngine] Moon lat deg:', s.lat.toFixed(2), '(expect -5 to +5)');
-      console.log('[AstroEngine] Phase:', s.phaseName);
-      console.log('[AstroEngine] Libration°:', s.libration.toFixed(2), '(expect -7.9 to +7.9)');
-      console.log('[AstroEngine] Speed km/s:', s.speed.toFixed(3), '(expect 0.9-1.1)');
-    }
 
     // PLACEHOLDER: time controller goes here
     // PLACEHOLDER: starfield goes here
