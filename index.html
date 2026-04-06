@@ -349,7 +349,47 @@
       }
     };
 
-    // PLACEHOLDER: time controller goes here
+    // ── Time Controller ──────────────────────────────────────────────────────
+    const timeController = {
+      simTime:    Date.now(),
+      multiplier: 1,
+      isLive:     true,
+      paused:     false,
+      _lastWall:  Date.now(),
+
+      tick() {
+        const now = Date.now();
+        const wallDelta = now - this._lastWall;
+        this._lastWall = now;
+        if (this.isLive) {
+          this.simTime = Date.now();
+        } else if (!this.paused) {
+          this.simTime += wallDelta * this.multiplier;
+        }
+        return new Date(this.simTime);
+      },
+
+      setSpeed(mult) {
+        this.isLive     = false;
+        this.paused     = false;
+        this.multiplier = mult;
+        this._lastWall  = Date.now();
+      },
+
+      goLive() {
+        this.isLive     = true;
+        this.paused     = false;
+        this.multiplier = 1;
+        this.simTime    = Date.now();
+        this._lastWall  = Date.now();
+      },
+
+      pause() {
+        this.isLive    = false;
+        this.paused    = !this.paused;
+        this._lastWall = Date.now();
+      }
+    };
     // PLACEHOLDER: starfield goes here
     // PLACEHOLDER: earth goes here
     // PLACEHOLDER: moon goes here
