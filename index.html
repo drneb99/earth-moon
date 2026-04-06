@@ -468,13 +468,15 @@
     const moonMesh = new THREE.Mesh(moonGeo, moonMat);
     scene.add(moonMesh);
 
+    const _toEarth = new THREE.Vector3();
+
     function updateMoon(state) {
       moonMesh.position.copy(state.scenePos);
 
       // Tidal lock: rotate Moon so its near-side (+Z local) faces Earth (origin)
-      const toEarth = new THREE.Vector3(0, 0, 0).sub(moonMesh.position).normalize();
+      _toEarth.set(0, 0, 0).sub(moonMesh.position).normalize();
       const quat    = new THREE.Quaternion();
-      quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), toEarth);
+      quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _toEarth);
       moonMesh.quaternion.copy(quat);
 
       // Apply libration offset around local Y axis
@@ -519,19 +521,20 @@
       if (keepLive) liveBtn.classList.add('active');
     }
 
-    function applySpeed(mult, label) {
+    function applySpeed(mult, label, btn) {
       timeController.setSpeed(mult);
       speedLabel.textContent = label;
       setActiveBtn(false);
+      btn.classList.add('active');
     }
 
-    document.getElementById('btn-rev3').addEventListener('click', () => applySpeed(-100000, '\u25c4\u25c4\u25c4 100,000\u00d7 (reverse)'));
-    document.getElementById('btn-rev2').addEventListener('click', () => applySpeed(-1000,   '\u25c4\u25c4 1,000\u00d7 (reverse)'));
-    document.getElementById('btn-rev1').addEventListener('click', () => applySpeed(-100,    '\u25c4 100\u00d7 (reverse)'));
+    document.getElementById('btn-rev3').addEventListener('click', function() { applySpeed(-100000, '\u25c4\u25c4\u25c4 100,000\u00d7 (reverse)', this); });
+    document.getElementById('btn-rev2').addEventListener('click', function() { applySpeed(-1000,   '\u25c4\u25c4 1,000\u00d7 (reverse)', this); });
+    document.getElementById('btn-rev1').addEventListener('click', function() { applySpeed(-100,    '\u25c4 100\u00d7 (reverse)', this); });
 
-    document.getElementById('btn-fwd1').addEventListener('click', () => applySpeed(100,    '\u25ba 100\u00d7'));
-    document.getElementById('btn-fwd2').addEventListener('click', () => applySpeed(1000,   '\u25ba\u25ba 1,000\u00d7'));
-    document.getElementById('btn-fwd3').addEventListener('click', () => applySpeed(100000, '\u25ba\u25ba\u25ba 100,000\u00d7'));
+    document.getElementById('btn-fwd1').addEventListener('click', function() { applySpeed(100,    '\u25ba 100\u00d7', this); });
+    document.getElementById('btn-fwd2').addEventListener('click', function() { applySpeed(1000,   '\u25ba\u25ba 1,000\u00d7', this); });
+    document.getElementById('btn-fwd3').addEventListener('click', function() { applySpeed(100000, '\u25ba\u25ba\u25ba 100,000\u00d7', this); });
 
     document.getElementById('btn-pause').addEventListener('click', () => {
       timeController.pause();
