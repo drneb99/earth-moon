@@ -511,8 +511,40 @@
     })();
     // PLACEHOLDER: button wiring goes here
 
+    // ── Per-frame update ─────────────────────────────────────────────────────
+    function updateHUD(date, moonState) {
+      const iso = date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+      document.getElementById('hud-time').textContent  = iso;
+      document.getElementById('live-badge').className  = timeController.isLive ? '' : 'hidden';
+      document.getElementById('hud-dist').textContent  = moonState.distance.toFixed(0) + ' km';
+      document.getElementById('hud-phase').textContent = moonState.phaseIcon + ' ' + moonState.phaseName;
+      document.getElementById('hud-speed').textContent = moonState.speed.toFixed(3) + ' km/s';
+      document.getElementById('hud-lib').textContent   = (moonState.libration >= 0 ? '+' : '') +
+        moonState.libration.toFixed(2) + '\u00b0';
+    }
+
     function animate() {
       requestAnimationFrame(animate);
+
+      const simDate   = timeController.tick();
+      const moonState = astronomyEngine.getMoonState(simDate);
+      const sunDir    = astronomyEngine.getSunDirection(simDate);
+
+      // Sun light direction
+      sunLight.position.copy(sunDir).multiplyScalar(1000);
+
+      // Earth daily rotation: full turn per 24 sim-hours
+      const dayFrac = (simDate.getUTCHours() * 3600 +
+                       simDate.getUTCMinutes() * 60 +
+                       simDate.getUTCSeconds()) / 86400;
+      earthMesh.rotation.y = dayFrac * 2 * Math.PI;
+
+      // Moon position + tidal lock + libration
+      updateMoon(moonState);
+
+      // HUD
+      updateHUD(simDate, moonState);
+
       controls.update();
       renderer.render(scene, camera);
     }
