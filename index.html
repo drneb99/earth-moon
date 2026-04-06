@@ -571,11 +571,10 @@
       // Sun light direction
       sunLight.position.copy(sunDir).multiplyScalar(1000);
 
-      // Earth daily rotation: full turn per 24 sim-hours
-      const dayFrac = (simDate.getUTCHours() * 3600 +
-                       simDate.getUTCMinutes() * 60 +
-                       simDate.getUTCSeconds()) / 86400;
-      earthMesh.rotation.y = dayFrac * 2 * Math.PI;
+      // Earth rotation: use GMST so the terminator matches real-world time
+      const JD_earth = astronomyEngine.julianDay(simDate);
+      const GMST_deg = ((280.46061837 + 360.98564736629 * (JD_earth - 2451545.0)) % 360 + 360) % 360;
+      earthMesh.rotation.y = GMST_deg * Math.PI / 180;
 
       // Moon position + tidal lock + libration
       updateMoon(moonState);
