@@ -153,7 +153,7 @@
       <div class="focus-dot"></div>
       <span>Focused: <span id="focus-name" class="focus-name">Earth</span></span>
     </div>
-    <div class="focus-hint">Click Earth or Moon to switch</div>
+    <div class="focus-hint" id="focus-hint">Click Earth or Moon to switch</div>
   </div>
 
   <script type="importmap">
@@ -588,9 +588,9 @@
     });
 
     // ── Focus / click-to-target ───────────────────────────────────────────────
-    let focusTarget   = 'earth';                    // 'earth' | 'moon'
-    const _lerpTarget = new THREE.Vector3();        // current lerped controls.target
-    const _moonTarget = new THREE.Vector3();        // moon position snapshot for lerp
+    let focusTarget    = 'earth';                   // 'earth' | 'moon'
+    const _lerpTarget  = new THREE.Vector3();       // lerped controls.target (earth mode)
+    const _moonCamPos  = new THREE.Vector3();       // target camera pos in moon mode
     const _earthOrigin = new THREE.Vector3(0,0,0);
 
     const raycaster = new THREE.Raycaster();
@@ -620,9 +620,11 @@
       if (moonHit.length > 0) {
         focusTarget = 'moon';
         document.getElementById('focus-name').textContent = 'Moon';
+        document.getElementById('focus-hint').textContent = 'Riding with Moon \u2014 looking at Earth';
       } else if (earthHit.length > 0) {
         focusTarget = 'earth';
         document.getElementById('focus-name').textContent = 'Earth';
+        document.getElementById('focus-hint').textContent = 'Click Earth or Moon to switch';
       }
     });
 
@@ -659,12 +661,18 @@
       // HUD
       updateHUD(simDate, moonState);
 
-      // Smooth camera target: lerp toward focused body
-      const dest = focusTarget === 'moon'
-        ? _moonTarget.copy(moonMesh.position)
-        : _earthOrigin;
-      _lerpTarget.lerp(dest, 0.06);
-      controls.target.copy(_lerpTarget);
+      // Camera focus behavior
+      if (focusTarget === 'moon') {
+        // Lock camera beyond the Moon, looking at Earth
+        _moonCamPos.copy(moonMesh.position).normalize()
+          .multiplyScalar(moonMesh.position.length() + 20);
+        camera.position.lerp(_moonCamPos, 0.04);
+        controls.target.set(0, 0, 0);
+      } else {
+        // Free orbit around Earth
+        _lerpTarget.lerp(_earthOrigin, 0.06);
+        controls.target.copy(_lerpTarget);
+      }
 
       controls.update();
       renderer.render(scene, camera);
