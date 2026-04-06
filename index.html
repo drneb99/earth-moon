@@ -479,7 +479,36 @@
       // Apply libration offset around local Y axis
       moonMesh.rotateY(state.libration * Math.PI / 180);
     }
-    // PLACEHOLDER: orbit ring goes here
+    // ── Orbit Ring ───────────────────────────────────────────────────────────
+    (function buildOrbitRing() {
+      const e   = 0.0549;
+      const a   = 384400 / 10000;           // semi-major axis in scene units (~38.44)
+      const b   = a * Math.sqrt(1 - e * e); // semi-minor axis
+      const inc = 5.145 * Math.PI / 180;    // orbital inclination to ecliptic
+
+      const segments = 256;
+      const pts      = [];
+      for (let i = 0; i <= segments; i++) {
+        const angle = (i / segments) * 2 * Math.PI;
+        pts.push(new THREE.Vector3(
+          a * Math.cos(angle) - a * e,  // shift so Earth sits at one focus
+          0,
+          b * Math.sin(angle)
+        ));
+      }
+
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color:       0xffffff,
+        transparent: true,
+        opacity:     0.18,
+        depthWrite:  false,
+      });
+
+      const ring = new THREE.Line(geo, mat);
+      ring.rotation.x = inc;
+      scene.add(ring);
+    })();
     // PLACEHOLDER: button wiring goes here
 
     function animate() {
