@@ -420,7 +420,40 @@
       stars.updateMatrix();
       scene.add(stars);
     })();
-    // PLACEHOLDER: earth goes here
+    // ── Earth ────────────────────────────────────────────────────────────────
+    const EARTH_RADIUS   = 2.0;
+    const EARTH_TILT_RAD = 23.44 * Math.PI / 180;
+
+    const texLoader  = new THREE.TextureLoader();
+    const earthGroup = new THREE.Group();
+    earthGroup.rotation.z = EARTH_TILT_RAD;
+    scene.add(earthGroup);
+
+    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+    const earthMat = new THREE.MeshPhongMaterial({
+      map:         texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+      specularMap: texLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
+      specular:    new THREE.Color(0x333333),
+      shininess:   15,
+    });
+    const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthGroup.add(earthMesh);
+
+    // Atmosphere halo
+    const atmGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.02, 64, 64);
+    const atmMat = new THREE.MeshPhongMaterial({
+      color:       0x4488ff,
+      transparent: true,
+      opacity:     0.08,
+      side:        THREE.FrontSide,
+      blending:    THREE.AdditiveBlending,
+      depthWrite:  false,
+    });
+    earthGroup.add(new THREE.Mesh(atmGeo, atmMat));
+
+    // Sun directional light (position updated each frame)
+    const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    scene.add(sunLight);
     // PLACEHOLDER: moon goes here
     // PLACEHOLDER: orbit ring goes here
     // PLACEHOLDER: button wiring goes here
