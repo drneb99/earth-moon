@@ -105,6 +105,16 @@
     @media (max-width: 480px) {
       #focus-indicator { font-size: 11px; top: 8px; right: 8px; padding: 6px 10px; }
     }
+
+    #hud-coords { display: none; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 6px; padding-top: 6px; }
+    #hud-coords.visible { display: block; }
+    #coords-toggle {
+      background: none; border: none; color: #555; font-family: 'Courier New', monospace;
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      cursor: pointer; padding: 4px 0 0; width: 100%; text-align: left;
+      transition: color 0.15s;
+    }
+    #coords-toggle:hover { color: #aaa; }
   </style>
 </head>
 <body>
@@ -132,6 +142,18 @@
     <div class="hud-row">
       <span class="hud-label">Libration</span>
       <span class="hud-value" id="hud-lib">—</span>
+    </div>
+    <button id="coords-toggle">▶ Ecliptic Coords</button>
+    <div id="hud-coords">
+      <div class="hud-row">
+        <span class="hud-label">Ecl. Lon</span>
+        <span class="hud-value" id="hud-lon">—</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Ecl. Lat</span>
+        <span class="hud-value" id="hud-lat">—</span>
+      </div>
+      <div style="font-size:10px;color:#444;margin-top:4px;">Verify: JPL Horizons #301</div>
     </div>
   </div>
 
@@ -646,7 +668,19 @@
       document.getElementById('hud-speed').textContent = moonState.speed.toFixed(3) + ' km/s';
       document.getElementById('hud-lib').textContent   = (moonState.libration >= 0 ? '+' : '') +
         moonState.libration.toFixed(2) + '\u00b0';
+      document.getElementById('hud-lon').textContent = moonState.lon.toFixed(2) + '\u00b0';
+      document.getElementById('hud-lat').textContent = (moonState.lat >= 0 ? '+' : '') + moonState.lat.toFixed(2) + '\u00b0';
     }
+
+    // ── Coords toggle ────────────────────────────────────────────────────────
+    (function() {
+      const toggle = document.getElementById('coords-toggle');
+      const panel  = document.getElementById('hud-coords');
+      toggle.addEventListener('click', () => {
+        const open = panel.classList.toggle('visible');
+        toggle.textContent = (open ? '\u25bc' : '\u25ba') + ' Ecliptic Coords';
+      });
+    })();
 
     function animate() {
       requestAnimationFrame(animate);
