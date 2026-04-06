@@ -509,7 +509,41 @@
       ring.rotation.x = inc;
       scene.add(ring);
     })();
-    // PLACEHOLDER: button wiring goes here
+    // ── Button wiring ────────────────────────────────────────────────────────
+    const speedLabel = document.getElementById('speed-label');
+    const liveBtn    = document.getElementById('btn-live');
+
+    function setActiveBtn(keepLive = false) {
+      document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+      if (keepLive) liveBtn.classList.add('active');
+    }
+
+    function applySpeed(mult, label) {
+      timeController.setSpeed(mult);
+      speedLabel.textContent = label;
+      setActiveBtn(false);
+    }
+
+    document.getElementById('btn-rev3').addEventListener('click', () => applySpeed(-100000, '\u25c4\u25c4\u25c4 100,000\u00d7 (reverse)'));
+    document.getElementById('btn-rev2').addEventListener('click', () => applySpeed(-1000,   '\u25c4\u25c4 1,000\u00d7 (reverse)'));
+    document.getElementById('btn-rev1').addEventListener('click', () => applySpeed(-100,    '\u25c4 100\u00d7 (reverse)'));
+
+    document.getElementById('btn-fwd1').addEventListener('click', () => applySpeed(100,    '\u25ba 100\u00d7'));
+    document.getElementById('btn-fwd2').addEventListener('click', () => applySpeed(1000,   '\u25ba\u25ba 1,000\u00d7'));
+    document.getElementById('btn-fwd3').addEventListener('click', () => applySpeed(100000, '\u25ba\u25ba\u25ba 100,000\u00d7'));
+
+    document.getElementById('btn-pause').addEventListener('click', () => {
+      timeController.pause();
+      setActiveBtn(false);
+      document.getElementById('btn-pause').classList.add('active');
+      speedLabel.textContent = timeController.paused ? '\u23f8 Paused' : 'Resuming\u2026';
+    });
+
+    document.getElementById('btn-live').addEventListener('click', () => {
+      timeController.goLive();
+      setActiveBtn(true);
+      speedLabel.textContent = 'LIVE \u2014 1\u00d7';
+    });
 
     // ── Per-frame update ─────────────────────────────────────────────────────
     function updateHUD(date, moonState) {
