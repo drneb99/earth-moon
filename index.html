@@ -544,36 +544,28 @@
       // Apply libration offset around local Y axis
       moonMesh.rotateY(state.libration * Math.PI / 180);
     }
-    // ── Orbit Ring ───────────────────────────────────────────────────────────
-    (function buildOrbitRing() {
-      const e   = 0.0549;
-      const a   = 384400 / 10000;           // semi-major axis in scene units (~38.44)
-      const b   = a * Math.sqrt(1 - e * e); // semi-minor axis
-      const inc = 5.145 * Math.PI / 180;    // orbital inclination to ecliptic
+    // ── Orbit Ring (sampled from real Moon positions) ─────────────────────────
+    const ORBITAL_PERIOD_MS = 27.32166 * 24 * 3600 * 1000; // one sidereal month
 
-      const segments = 256;
-      const pts      = [];
-      for (let i = 0; i <= segments; i++) {
-        const angle = (i / segments) * 2 * Math.PI;
-        pts.push(new THREE.Vector3(
-          a * Math.cos(angle) - a * e,  // shift so Earth sits at one focus
-          0,
-          b * Math.sin(angle)
-        ));
+    const orbitGeo = new THREE.BufferGeometry();
+    const orbitMat = new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
+    });
+    const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+    scene.add(orbitLine);
+
+    let _lastOrbitUpdate = 0; // simTime when orbit was last resampled
+
+    function rebuildOrbitRing(centerDate) {
+      const samples = 180;
+      const pts = [];
+      const start = centerDate.getTime() - ORBITAL_PERIOD_MS / 2;
+      for (let i = 0; i <= samples; i++) {
+        const t = start + (i / samples) * ORBITAL_PERIOD_MS;
+        pts.push(astronomyEngine.getMoonState(new Date(t)).scenePos.clone());
       }
-
-      const geo = new THREE.BufferGeometry().setFromPoints(pts);
-      const mat = new THREE.LineBasicMaterial({
-        color:       0xffffff,
-        transparent: true,
-        opacity:     0.18,
-        depthWrite:  false,
-      });
-
-      const ring = new THREE.Line(geo, mat);
-      ring.rotation.x = inc;
-      scene.add(ring);
-    })();
+      orbitGeo.setFromPoints(pts);
+    }
     // ── Button wiring ────────────────────────────────────────────────────────
     const speedLabel = document.getElementById('speed-label');
     const liveBtn    = document.getElementById('btn-live');
@@ -687,6 +679,13 @@
 
       const simDate   = timeController.tick();
       const moonState = astronomyEngine.getMoonState(simDate);
+
+      // Rebuild orbit ring if sim time has shifted by more than 6 sim-hours
+      if (Math.abs(simDate.getTime() - _lastOrbitUpdate) > 6 * 3600 * 1000) {
+        rebuildOrbitRing(simDate);
+        _lastOrbitUpdate = simDate.getTime();
+      }
+
       const sunDir    = astronomyEngine.getSunDirection(simDate);
 
       // Sun light direction
