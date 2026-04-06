@@ -184,8 +184,6 @@
         const M  = this.norm(357.5291092 + 35999.0502909  *T - 0.0001536*T2); // Sun mean anomaly
         const Mp = this.norm(134.9633964 + 477198.8675055 *T + 0.0087414*T2); // Moon mean anomaly
         const F  = this.norm(93.2720950  + 483202.0175233 *T - 0.0036539*T2); // Moon arg of latitude
-        const Om = this.norm(125.0445479 - 1934.1362608   *T + 0.0020754*T2); // Ascending node
-
         // Eccentricity correction for solar terms
         const E  = 1 - 0.002516*T - 0.0000074*T2;
         const E2 = E * E;
