@@ -454,7 +454,31 @@
     // Sun directional light (position updated each frame)
     const sunLight = new THREE.DirectionalLight(0xffffff, 1.2);
     scene.add(sunLight);
-    // PLACEHOLDER: moon goes here
+
+    // ── Moon ─────────────────────────────────────────────────────────────────
+    const MOON_RADIUS = 0.545;
+
+    const moonGeo  = new THREE.SphereGeometry(MOON_RADIUS, 48, 48);
+    const moonMat  = new THREE.MeshPhongMaterial({
+      map:       texLoader.load('https://threejs.org/examples/textures/planets/moon_1024.jpg'),
+      shininess: 5,
+      specular:  new THREE.Color(0x111111),
+    });
+    const moonMesh = new THREE.Mesh(moonGeo, moonMat);
+    scene.add(moonMesh);
+
+    function updateMoon(state) {
+      moonMesh.position.copy(state.scenePos);
+
+      // Tidal lock: rotate Moon so its near-side (+Z local) faces Earth (origin)
+      const toEarth = new THREE.Vector3(0, 0, 0).sub(moonMesh.position).normalize();
+      const quat    = new THREE.Quaternion();
+      quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), toEarth);
+      moonMesh.quaternion.copy(quat);
+
+      // Apply libration offset around local Y axis
+      moonMesh.rotateY(state.libration * Math.PI / 180);
+    }
     // PLACEHOLDER: orbit ring goes here
     // PLACEHOLDER: button wiring goes here
 
