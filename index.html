@@ -73,6 +73,36 @@
       #hud { font-size: 11px; min-width: 170px; padding: 8px 12px; top: 8px; left: 8px; }
       .ctrl-btn { font-size: 11px; padding: 5px 8px; }
     }
+
+    #focus-indicator {
+      position: fixed; top: 16px; right: 16px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px;
+      padding: 8px 14px;
+      color: #aaa;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      user-select: none;
+      backdrop-filter: blur(4px);
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    #focus-indicator .focus-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+    #focus-indicator .focus-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #00ff88;
+    }
+    #focus-indicator .focus-name {
+      color: #fff; font-weight: bold;
+    }
+    #focus-indicator .focus-hint {
+      font-size: 10px; color: #666;
+    }
+    @media (max-width: 480px) {
+      #focus-indicator { font-size: 11px; top: 8px; right: 8px; padding: 6px 10px; }
+    }
   </style>
 </head>
 <body>
@@ -116,6 +146,14 @@
       <button class="ctrl-btn" id="btn-fwd3">▶▶▶ 100k×</button>
       <button class="ctrl-btn active" id="btn-live">● LIVE</button>
     </div>
+  </div>
+
+  <div id="focus-indicator">
+    <div class="focus-row">
+      <div class="focus-dot"></div>
+      <span>Focused: <span id="focus-name" class="focus-name">Earth</span></span>
+    </div>
+    <div class="focus-hint">Click Earth or Moon to switch</div>
   </div>
 
   <script type="importmap">
@@ -549,6 +587,45 @@
       speedLabel.textContent = 'LIVE \u2014 1\u00d7';
     });
 
+    // ── Focus / click-to-target ───────────────────────────────────────────────
+    let focusTarget   = 'earth';                    // 'earth' | 'moon'
+    const _lerpTarget = new THREE.Vector3();        // current lerped controls.target
+    const _moonTarget = new THREE.Vector3();        // moon position snapshot for lerp
+    const _earthOrigin = new THREE.Vector3(0,0,0);
+
+    const raycaster = new THREE.Raycaster();
+    const _mouse    = new THREE.Vector2();
+
+    // Distinguish click from drag: record pointer-down position
+    let _pointerDownX = 0, _pointerDownY = 0;
+
+    canvas.addEventListener('pointerdown', e => {
+      _pointerDownX = e.clientX;
+      _pointerDownY = e.clientY;
+    });
+
+    canvas.addEventListener('pointerup', e => {
+      // Only treat as a click if pointer moved < 5px (not a drag)
+      const dx = e.clientX - _pointerDownX;
+      const dy = e.clientY - _pointerDownY;
+      if (Math.sqrt(dx*dx + dy*dy) > 5) return;
+
+      _mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+      _mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+      raycaster.setFromCamera(_mouse, camera);
+
+      const moonHit  = raycaster.intersectObject(moonMesh);
+      const earthHit = raycaster.intersectObject(earthMesh);
+
+      if (moonHit.length > 0) {
+        focusTarget = 'moon';
+        document.getElementById('focus-name').textContent = 'Moon';
+      } else if (earthHit.length > 0) {
+        focusTarget = 'earth';
+        document.getElementById('focus-name').textContent = 'Earth';
+      }
+    });
+
     // ── Per-frame update ─────────────────────────────────────────────────────
     function updateHUD(date, moonState) {
       const iso = date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
@@ -581,6 +658,13 @@
 
       // HUD
       updateHUD(simDate, moonState);
+
+      // Smooth camera target: lerp toward focused body
+      const dest = focusTarget === 'moon'
+        ? _moonTarget.copy(moonMesh.position)
+        : _earthOrigin;
+      _lerpTarget.lerp(dest, 0.06);
+      controls.target.copy(_lerpTarget);
 
       controls.update();
       renderer.render(scene, camera);
