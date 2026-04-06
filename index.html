@@ -67,6 +67,8 @@
     }
     .ctrl-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); }
     .ctrl-btn.active { background: rgba(0,255,136,0.15); border-color: #00ff88; color: #00ff88; }
+    .ctrl-btn.speed-btn { transition: opacity 0.2s, visibility 0.2s; }
+    .ctrl-btn.speed-btn.btn-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
     /* Responsive */
     @media (max-width: 480px) {
@@ -137,13 +139,13 @@
   <div id="controls">
     <div id="speed-label">LIVE — 1×</div>
     <div id="btn-row">
-      <button class="ctrl-btn" id="btn-rev3">◀◀◀ 100k×</button>
-      <button class="ctrl-btn" id="btn-rev2">◀◀ 1000×</button>
-      <button class="ctrl-btn" id="btn-rev1">◀ 100×</button>
+      <button class="ctrl-btn speed-btn" id="btn-rev3">◀◀◀ 100k×</button>
+      <button class="ctrl-btn speed-btn" id="btn-rev2">◀◀ 1000×</button>
+      <button class="ctrl-btn speed-btn" id="btn-rev1">◀ 100×</button>
       <button class="ctrl-btn" id="btn-pause">⏸ Pause</button>
-      <button class="ctrl-btn" id="btn-fwd1">▶ 100×</button>
-      <button class="ctrl-btn" id="btn-fwd2">▶▶ 1000×</button>
-      <button class="ctrl-btn" id="btn-fwd3">▶▶▶ 100k×</button>
+      <button class="ctrl-btn speed-btn" id="btn-fwd1">▶ 100×</button>
+      <button class="ctrl-btn speed-btn" id="btn-fwd2">▶▶ 1000×</button>
+      <button class="ctrl-btn speed-btn" id="btn-fwd3">▶▶▶ 100k×</button>
       <button class="ctrl-btn active" id="btn-live">● LIVE</button>
     </div>
   </div>
@@ -596,6 +598,12 @@
     const raycaster = new THREE.Raycaster();
     const _mouse    = new THREE.Vector2();
 
+    function setSpeedButtonsVisible(visible) {
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        btn.classList.toggle('btn-hidden', !visible);
+      });
+    }
+
     // Distinguish click from drag: record pointer-down position
     let _pointerDownX = 0, _pointerDownY = 0;
 
@@ -620,9 +628,11 @@
       if (moonHit.length > 0) {
         focusTarget = 'moon';
         document.getElementById('focus-name').textContent = 'Moon';
+        setSpeedButtonsVisible(false);
       } else if (earthHit.length > 0) {
         focusTarget = 'earth';
         document.getElementById('focus-name').textContent = 'Earth';
+        setSpeedButtonsVisible(true);
       }
     });
 
