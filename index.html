@@ -135,6 +135,14 @@
       <span class="hud-label">Phase</span>
       <span class="hud-value" id="hud-phase">—</span>
     </div>
+    <div class="hud-row" style="margin-top:2px;">
+      <span class="hud-label" style="font-size:10px;color:#555;">Full phase spans ~3 days</span>
+      <span style="font-size:10px;color:#555;" id="hud-fullmoon-in">—</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Peak Full Moon</span>
+      <span class="hud-value" id="hud-fullmoon">—</span>
+    </div>
     <div class="hud-row">
       <span class="hud-label">Speed</span>
       <span class="hud-value" id="hud-speed">—</span>
@@ -621,6 +629,63 @@
       this.classList.toggle('active', visible);
     });
 
+    // ── Next Full Moon finder ─────────────────────────────────────────────────
+    function getTrueElongation(date) {
+      const moonState = astronomyEngine.getMoonState(date);
+      const sunDir    = astronomyEngine.getSunDirection(date);
+      const sunLon    = astronomyEngine.norm(
+        Math.atan2(-sunDir.z, sunDir.x) * 180 / Math.PI
+      );
+      return astronomyEngine.norm(moonState.lon - sunLon);
+    }
+
+    function findNextFullMoon(fromDate) {
+      const stepMs = 6 * 3600 * 1000; // 6-hour scan steps
+      let t         = fromDate.getTime();
+      let prevElong = getTrueElongation(new Date(t));
+
+      // Advance past current full moon phase if we're inside one
+      if (prevElong > 157.5 && prevElong < 202.5) {
+        while (prevElong > 157.5 && prevElong < 202.5) {
+          t        += stepMs;
+          prevElong = getTrueElongation(new Date(t));
+        }
+      }
+
+      // Scan forward up to 35 days for the next 180° crossing
+      for (let i = 0; i < 140; i++) {
+        t += stepMs;
+        const elong = getTrueElongation(new Date(t));
+        if (prevElong < 180 && elong >= 180) {
+          // Bisect for ~1-minute precision
+          let lo = t - stepMs, hi = t;
+          for (let j = 0; j < 40; j++) {
+            const mid = (lo + hi) / 2;
+            if (getTrueElongation(new Date(mid)) < 180) lo = mid; else hi = mid;
+          }
+          return new Date((lo + hi) / 2);
+        }
+        prevElong = elong;
+      }
+      return null;
+    }
+
+    let _cachedFullMoon     = null; // { date: Date, computedAt: number }
+    const FULL_MOON_CACHE_MS = 12 * 3600 * 1000; // recompute every 12 sim-hours
+
+    function getNextFullMoon(simDate) {
+      if (
+        !_cachedFullMoon ||
+        Math.abs(simDate.getTime() - _cachedFullMoon.computedAt) > FULL_MOON_CACHE_MS
+      ) {
+        _cachedFullMoon = {
+          date:       findNextFullMoon(simDate),
+          computedAt: simDate.getTime(),
+        };
+      }
+      return _cachedFullMoon.date;
+    }
+
     // ── Focus / click-to-target ───────────────────────────────────────────────
     let focusTarget   = 'earth';                    // 'earth' | 'moon'
     const _lerpTarget = new THREE.Vector3();        // current lerped controls.target
@@ -675,6 +740,19 @@
       document.getElementById('live-badge').className  = timeController.isLive ? '' : 'hidden';
       document.getElementById('hud-dist').textContent  = moonState.distance.toFixed(0) + ' km';
       document.getElementById('hud-phase').textContent = moonState.phaseIcon + ' ' + moonState.phaseName;
+      const nextFull = getNextFullMoon(date);
+      if (nextFull) {
+        const diffMs   = nextFull.getTime() - date.getTime();
+        const diffDays = Math.floor(diffMs / 86400000);
+        const diffHrs  = Math.floor((diffMs % 86400000) / 3600000);
+        const fullStr  = nextFull.toUTCString().replace(' GMT', ' UTC')
+          .replace(/:\d\d /, ' ');           // trim seconds for brevity
+        document.getElementById('hud-fullmoon').textContent    = fullStr;
+        document.getElementById('hud-fullmoon-in').textContent =
+          diffMs > 0
+            ? 'in ' + diffDays + 'd ' + diffHrs + 'h'
+            : 'now / passed';
+      }
       document.getElementById('hud-speed').textContent = moonState.speed.toFixed(3) + ' km/s';
       document.getElementById('hud-lib').textContent   = (moonState.libration >= 0 ? '+' : '') +
         moonState.libration.toFixed(2) + '\u00b0';
