@@ -1029,6 +1029,25 @@
       // HUD
       updateHUD(simDate, moonState);
 
+      // Artemis II per-frame update
+      if (artemisState.active) {
+        const pos = getSpacecraftPosition(simDate);
+        if (pos) {
+          spacecraftMesh.visible = true;
+          spacecraftMesh.position.copy(pos);
+          // Pulse uses wall clock so it's independent of sim speed
+          spacecraftMesh.scale.setScalar(1 + 0.35 * Math.sin(Date.now() * 0.004));
+          const elapsedMs = simDate.getTime() - ARTEMIS2.launch.getTime();
+          artemisCardEls.met.textContent   = formatMET(elapsedMs);
+          artemisCardEls.phase.textContent = getArtemisPhase(elapsedMs) || 'Complete';
+        } else {
+          spacecraftMesh.visible = false;
+          const elapsedMs = simDate.getTime() - ARTEMIS2.launch.getTime();
+          artemisCardEls.met.textContent   = elapsedMs < 0 ? 'Pre-launch' : 'Mission Complete';
+          artemisCardEls.phase.textContent = '\u2014';
+        }
+      }
+
       // Smooth camera target: lerp toward focused body
       const dest = focusTarget === 'moon'
         ? _moonTarget.copy(moonMesh.position)
