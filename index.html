@@ -106,6 +106,26 @@
       #focus-indicator { font-size: 11px; top: 8px; right: 8px; padding: 6px 10px; }
     }
 
+    #artemis-card {
+      position: fixed; top: 110px; right: 16px;
+      background: rgba(0,0,0,0.65);
+      border: 1px solid rgba(255,140,0,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.7;
+      min-width: 190px;
+      user-select: none;
+      backdrop-filter: blur(4px);
+      display: none;
+    }
+    #artemis-card.visible { display: block; }
+    @media (max-width: 480px) {
+      #artemis-card { font-size: 11px; top: 90px; right: 8px; padding: 6px 10px; }
+    }
+
     #hud-coords { display: none; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 6px; padding-top: 6px; }
     #hud-coords.visible { display: block; }
     #coords-toggle {
@@ -178,6 +198,7 @@
       <button class="ctrl-btn speed-btn" id="btn-fwd3">▶▶▶ 100k×</button>
       <button class="ctrl-btn active" id="btn-live">● LIVE</button>
       <button class="ctrl-btn active" id="btn-orbit">⊙ Orbit</button>
+      <button class="ctrl-btn" id="btn-artemis">🚀 Artemis II</button>
     </div>
   </div>
 
@@ -187,6 +208,24 @@
       <span>Focused: <span id="focus-name" class="focus-name">Earth</span></span>
     </div>
     <div class="focus-hint">Click Earth or Moon to switch</div>
+  </div>
+
+  <div id="artemis-card">
+    <div class="hud-title">🚀 Artemis II</div>
+    <div class="hud-row">
+      <span class="hud-label">MET</span>
+      <span class="hud-value" id="artemis-met">—</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label">Phase</span>
+      <span class="hud-value" id="artemis-phase">—</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-label" style="align-self:flex-start">Crew</span>
+      <span class="hud-value" style="font-size:10px;line-height:1.6;text-align:right">
+        Wiseman · Glover<br>Koch · Hansen
+      </span>
+    </div>
   </div>
 
   <script type="importmap">
@@ -472,6 +511,24 @@
         this.paused    = !this.paused;
         this._lastWall = Date.now();
       }
+    };
+    // ── Artemis II Mission Data ───────────────────────────────────────────────
+    const ARTEMIS2 = {
+      launch:      new Date('2026-04-01T22:24:00Z'),
+      flyby:       new Date('2026-04-06T23:02:00Z'),
+      splashdown:  new Date('2026-04-11T00:07:00Z'),
+      // Moon radius 1,737 km + flyby altitude 6,550 km = 8,287 km from Moon center
+      flybyDistKm: 8287,
+    };
+    const ARTEMIS2_TOTAL_MS = ARTEMIS2.splashdown.getTime() - ARTEMIS2.launch.getTime();
+    const ARTEMIS2_FLYBY_MS = ARTEMIS2.flyby.getTime()      - ARTEMIS2.launch.getTime();
+
+    const artemisState = {
+      active:          false,
+      savedSimTime:    0,
+      savedMultiplier: 1,
+      savedIsLive:     false,
+      trajectory:      null, // { curve, points } — populated by buildArtemisTrajectory()
     };
     // ── Starfield ────────────────────────────────────────────────────────────
     (function buildStars() {
