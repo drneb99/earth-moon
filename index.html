@@ -744,7 +744,7 @@
 
     function setActiveBtn(keepLive = false) {
       // Exclude #btn-orbit — its active state tracks visibility, not speed selection
-      document.querySelectorAll('.ctrl-btn:not(#btn-orbit)').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.ctrl-btn:not(#btn-orbit):not(#btn-artemis)').forEach(b => b.classList.remove('active'));
       if (keepLive) liveBtn.classList.add('active');
     }
 
@@ -782,6 +782,62 @@
     document.getElementById('btn-orbit').addEventListener('click', function() {
       const visible = orbitLine.visible = !orbitLine.visible;
       this.classList.toggle('active', visible);
+    });
+
+    document.getElementById('btn-artemis').addEventListener('click', function () {
+      if (!artemisState.active) {
+        // ── Toggle ON ──
+        artemisState.active          = true;
+        artemisState.savedSimTime    = timeController.simTime;
+        artemisState.savedMultiplier = timeController.multiplier;
+        artemisState.savedIsLive     = timeController.isLive;
+
+        // Compute trajectory and populate geometry
+        artemisState.trajectory = buildArtemisTrajectory();
+        trajectoryGeo.setFromPoints(artemisState.trajectory.points);
+        trajectoryLine.visible   = true;
+        spacecraftMesh.visible   = true;
+        artemisCardEl.classList.add('visible');
+
+        // Jump to launch time at 1000×
+        timeController.setSpeed(1000);
+        timeController.simTime   = ARTEMIS2.launch.getTime();
+        timeController._lastWall = Date.now();
+
+        speedLabel.textContent = '\u25ba\u25ba 1,000\u00d7';
+        setActiveBtn(false);
+        document.getElementById('btn-fwd2').classList.add('active');
+        this.classList.add('active');
+
+      } else {
+        // ── Toggle OFF ──
+        artemisState.active = false;
+        trajectoryLine.visible  = false;
+        spacecraftMesh.visible  = false;
+        artemisCardEl.classList.remove('visible');
+
+        // Restore sim state
+        if (artemisState.savedIsLive) {
+          timeController.goLive();
+          speedLabel.textContent = 'LIVE \u2014 1\u00d7';
+          setActiveBtn(true);
+        } else {
+          timeController.simTime    = artemisState.savedSimTime;
+          timeController.multiplier = artemisState.savedMultiplier;
+          timeController.isLive     = false;
+          timeController.paused     = false;
+          timeController._lastWall  = Date.now();
+          const mult = artemisState.savedMultiplier;
+          const dir  = mult < 0 ? '\u25c4 ' : '\u25ba ';
+          speedLabel.textContent = dir + Math.abs(mult).toLocaleString() + '\u00d7' + (mult < 0 ? ' (reverse)' : '');
+          setActiveBtn(false);
+          const btnMap = { '100': 'btn-fwd1', '1000': 'btn-fwd2', '100000': 'btn-fwd3',
+                           '-100': 'btn-rev1', '-1000': 'btn-rev2', '-100000': 'btn-rev3' };
+          const matchBtn = document.getElementById(btnMap[String(mult)]);
+          if (matchBtn) matchBtn.classList.add('active');
+        }
+        this.classList.remove('active');
+      }
     });
 
     // ── Next Full Moon finder ─────────────────────────────────────────────────
@@ -898,7 +954,12 @@
       lon:        document.getElementById('hud-lon'),
       lat:        document.getElementById('hud-lat'),
     };
-    const focusNameEl = document.getElementById('focus-name');
+    const focusNameEl    = document.getElementById('focus-name');
+    const artemisCardEl  = document.getElementById('artemis-card');
+    const artemisCardEls = {
+      met:   document.getElementById('artemis-met'),
+      phase: document.getElementById('artemis-phase'),
+    };
 
     // ── Per-frame update ─────────────────────────────────────────────────────
     function updateHUD(date, moonState) {
