@@ -390,20 +390,31 @@
         const e = 0.0549;
         const libration = this.toDeg(Math.atan2(e * Math.sin(Mpr), 1 - e * Math.cos(Mpr)));
 
-        // Phase (0=new, 180=full) based on elongation D
-        const phaseAngle = D;
-        let phaseName, phaseIcon;
-        if      (phaseAngle <  22.5) { phaseName = 'New Moon';        phaseIcon = '🌑'; }
-        else if (phaseAngle <  67.5) { phaseName = 'Waxing Crescent'; phaseIcon = '🌒'; }
-        else if (phaseAngle < 112.5) { phaseName = 'First Quarter';   phaseIcon = '🌓'; }
-        else if (phaseAngle < 157.5) { phaseName = 'Waxing Gibbous';  phaseIcon = '🌔'; }
-        else if (phaseAngle < 202.5) { phaseName = 'Full Moon';       phaseIcon = '🌕'; }
-        else if (phaseAngle < 247.5) { phaseName = 'Waning Gibbous';  phaseIcon = '🌖'; }
-        else if (phaseAngle < 292.5) { phaseName = 'Last Quarter';    phaseIcon = '🌗'; }
-        else if (phaseAngle < 337.5) { phaseName = 'Waning Crescent'; phaseIcon = '🌘'; }
-        else                          { phaseName = 'New Moon';        phaseIcon = '🌑'; }
+        // Sun ecliptic longitude — computed once here so getSunDirection need not be called separately
+        const L0_sun = this.norm(280.46646 + 36000.76983 * T);
+        const C_sun  = (1.914602 - 0.004817*T) * Math.sin(this.toRad(M))
+                     + (0.019993 - 0.000101*T) * Math.sin(2 * this.toRad(M))
+                     +  0.000289                * Math.sin(3 * this.toRad(M));
+        const sunLon = this.norm(L0_sun + C_sun);
+        const sl     = this.toRad(sunLon);
+        // sunDir in ecliptic frame (Y=0, XZ = ecliptic plane) — same as getSunDirection()
+        const sunDir = new THREE.Vector3(Math.cos(sl), 0, -Math.sin(sl));
 
-        return { scenePos, distance: dist, speed, libration, phaseName, phaseIcon, lon, lat };
+        // True elongation (Moon lon − Sun lon) — used for phase labels and full moon finder
+        const trueElongation = this.norm(lon - sunLon);
+
+        let phaseName, phaseIcon;
+        if      (trueElongation <  22.5) { phaseName = 'New Moon';        phaseIcon = '🌑'; }
+        else if (trueElongation <  67.5) { phaseName = 'Waxing Crescent'; phaseIcon = '🌒'; }
+        else if (trueElongation < 112.5) { phaseName = 'First Quarter';   phaseIcon = '🌓'; }
+        else if (trueElongation < 157.5) { phaseName = 'Waxing Gibbous';  phaseIcon = '🌔'; }
+        else if (trueElongation < 202.5) { phaseName = 'Full Moon';       phaseIcon = '🌕'; }
+        else if (trueElongation < 247.5) { phaseName = 'Waning Gibbous';  phaseIcon = '🌖'; }
+        else if (trueElongation < 292.5) { phaseName = 'Last Quarter';    phaseIcon = '🌗'; }
+        else if (trueElongation < 337.5) { phaseName = 'Waning Crescent'; phaseIcon = '🌘'; }
+        else                              { phaseName = 'New Moon';        phaseIcon = '🌑'; }
+
+        return { scenePos, distance: dist, speed, libration, phaseName, phaseIcon, lon, lat, sunDir, trueElongation };
       },
 
       getSunDirection(date) {
@@ -539,16 +550,17 @@
     const moonMesh = new THREE.Mesh(moonGeo, moonMat);
     scene.add(moonMesh);
 
-    const _toEarth = new THREE.Vector3();
+    const _toEarth  = new THREE.Vector3();
+    const _moonQuat = new THREE.Quaternion();
+    const _Z_AXIS   = new THREE.Vector3(0, 0, 1); // Moon's local near-side axis
 
     function updateMoon(state) {
       moonMesh.position.copy(state.scenePos);
 
       // Tidal lock: rotate Moon so its near-side (+Z local) faces Earth (origin)
       _toEarth.set(0, 0, 0).sub(moonMesh.position).normalize();
-      const quat    = new THREE.Quaternion();
-      quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), _toEarth);
-      moonMesh.quaternion.copy(quat);
+      _moonQuat.setFromUnitVectors(_Z_AXIS, _toEarth);
+      moonMesh.quaternion.copy(_moonQuat);
 
       // Apply libration offset around local Y axis
       moonMesh.rotateY(state.libration * Math.PI / 180);
@@ -563,7 +575,8 @@
     const orbitLine = new THREE.Line(orbitGeo, orbitMat);
     scene.add(orbitLine);
 
-    let _lastOrbitUpdate = 0; // simTime when orbit was last resampled
+    let _lastOrbitUpdate = 0;   // sim time when orbit was last resampled
+    let _lastOrbitWallMs = 0;   // wall time when orbit was last resampled
 
     function rebuildOrbitRing(centerDate) {
       const samples = 180;
@@ -592,7 +605,8 @@
     const liveBtn    = document.getElementById('btn-live');
 
     function setActiveBtn(keepLive = false) {
-      document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+      // Exclude #btn-orbit — its active state tracks visibility, not speed selection
+      document.querySelectorAll('.ctrl-btn:not(#btn-orbit)').forEach(b => b.classList.remove('active'));
       if (keepLive) liveBtn.classList.add('active');
     }
 
@@ -611,11 +625,14 @@
     document.getElementById('btn-fwd2').addEventListener('click', function() { applySpeed(1000,   '\u25ba\u25ba 1,000\u00d7', this); });
     document.getElementById('btn-fwd3').addEventListener('click', function() { applySpeed(100000, '\u25ba\u25ba\u25ba 100,000\u00d7', this); });
 
+    let _prePauseLabel = 'LIVE \u2014 1\u00d7'; // tracks label in effect before pause
+
     document.getElementById('btn-pause').addEventListener('click', () => {
+      if (!timeController.paused) _prePauseLabel = speedLabel.textContent; // save before pausing
       timeController.pause();
       setActiveBtn(false);
       document.getElementById('btn-pause').classList.add('active');
-      speedLabel.textContent = timeController.paused ? '\u23f8 Paused' : 'Resuming\u2026';
+      speedLabel.textContent = timeController.paused ? '\u23f8 Paused' : _prePauseLabel;
     });
 
     document.getElementById('btn-live').addEventListener('click', () => {
@@ -631,12 +648,8 @@
 
     // ── Next Full Moon finder ─────────────────────────────────────────────────
     function getTrueElongation(date) {
-      const moonState = astronomyEngine.getMoonState(date);
-      const sunDir    = astronomyEngine.getSunDirection(date);
-      const sunLon    = astronomyEngine.norm(
-        Math.atan2(-sunDir.z, sunDir.x) * 180 / Math.PI
-      );
-      return astronomyEngine.norm(moonState.lon - sunLon);
+      // trueElongation is pre-computed inside getMoonState — no extra getSunDirection call needed
+      return astronomyEngine.getMoonState(date).trueElongation;
     }
 
     function findNextFullMoon(fromDate) {
@@ -676,7 +689,8 @@
     function getNextFullMoon(simDate) {
       if (
         !_cachedFullMoon ||
-        Math.abs(simDate.getTime() - _cachedFullMoon.computedAt) > FULL_MOON_CACHE_MS
+        Math.abs(simDate.getTime() - _cachedFullMoon.computedAt) > FULL_MOON_CACHE_MS ||
+        (_cachedFullMoon.date && simDate.getTime() >= _cachedFullMoon.date.getTime())
       ) {
         _cachedFullMoon = {
           date:       findNextFullMoon(simDate),
@@ -724,22 +738,37 @@
 
       if (moonHit.length > 0) {
         focusTarget = 'moon';
-        document.getElementById('focus-name').textContent = 'Moon';
+        focusNameEl.textContent = 'Moon';
         setSpeedButtonsVisible(false);
       } else if (earthHit.length > 0) {
         focusTarget = 'earth';
-        document.getElementById('focus-name').textContent = 'Earth';
+        focusNameEl.textContent = 'Earth';
         setSpeedButtonsVisible(true);
       }
     });
 
+    // ── Cached DOM references (avoid per-frame getElementById) ───────────────
+    const hudEls = {
+      time:       document.getElementById('hud-time'),
+      liveBadge:  document.getElementById('live-badge'),
+      dist:       document.getElementById('hud-dist'),
+      phase:      document.getElementById('hud-phase'),
+      fullmoonIn: document.getElementById('hud-fullmoon-in'),
+      fullmoon:   document.getElementById('hud-fullmoon'),
+      speed:      document.getElementById('hud-speed'),
+      lib:        document.getElementById('hud-lib'),
+      lon:        document.getElementById('hud-lon'),
+      lat:        document.getElementById('hud-lat'),
+    };
+    const focusNameEl = document.getElementById('focus-name');
+
     // ── Per-frame update ─────────────────────────────────────────────────────
     function updateHUD(date, moonState) {
       const iso = date.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
-      document.getElementById('hud-time').textContent  = iso;
-      document.getElementById('live-badge').className  = timeController.isLive ? '' : 'hidden';
-      document.getElementById('hud-dist').textContent  = moonState.distance.toFixed(0) + ' km';
-      document.getElementById('hud-phase').textContent = moonState.phaseIcon + ' ' + moonState.phaseName;
+      hudEls.time.textContent    = iso;
+      hudEls.liveBadge.className = timeController.isLive ? '' : 'hidden';
+      hudEls.dist.textContent    = moonState.distance.toFixed(0) + ' km';
+      hudEls.phase.textContent   = moonState.phaseIcon + ' ' + moonState.phaseName;
       const nextFull = getNextFullMoon(date);
       if (nextFull) {
         const diffMs   = nextFull.getTime() - date.getTime();
@@ -747,17 +776,16 @@
         const diffHrs  = Math.floor((diffMs % 86400000) / 3600000);
         const fullStr  = nextFull.toUTCString().replace(' GMT', ' UTC')
           .replace(/:\d\d /, ' ');           // trim seconds for brevity
-        document.getElementById('hud-fullmoon').textContent    = fullStr;
-        document.getElementById('hud-fullmoon-in').textContent =
-          diffMs > 0
-            ? 'in ' + diffDays + 'd ' + diffHrs + 'h'
-            : 'now / passed';
+        hudEls.fullmoon.textContent   = fullStr;
+        hudEls.fullmoonIn.textContent = diffMs > 0
+          ? 'in ' + diffDays + 'd ' + diffHrs + 'h'
+          : 'now / passed';
       }
-      document.getElementById('hud-speed').textContent = moonState.speed.toFixed(3) + ' km/s';
-      document.getElementById('hud-lib').textContent   = (moonState.libration >= 0 ? '+' : '') +
+      hudEls.speed.textContent = moonState.speed.toFixed(3) + ' km/s';
+      hudEls.lib.textContent   = (moonState.libration >= 0 ? '+' : '') +
         moonState.libration.toFixed(2) + '\u00b0';
-      document.getElementById('hud-lon').textContent = moonState.lon.toFixed(2) + '\u00b0';
-      document.getElementById('hud-lat').textContent = (moonState.lat >= 0 ? '+' : '') + moonState.lat.toFixed(2) + '\u00b0';
+      hudEls.lon.textContent   = moonState.lon.toFixed(2) + '\u00b0';
+      hudEls.lat.textContent   = (moonState.lat >= 0 ? '+' : '') + moonState.lat.toFixed(2) + '\u00b0';
     }
 
     // ── Coords toggle ────────────────────────────────────────────────────────
@@ -776,19 +804,20 @@
       const simDate   = timeController.tick();
       const moonState = astronomyEngine.getMoonState(simDate);
 
-      // Rebuild orbit ring: every frame at high speed, every 6 sim-hours otherwise
-      const _orbitRebuildInterval = Math.abs(timeController.multiplier) >= 1000
-        ? 0
-        : 6 * 3600 * 1000;
-      if (Math.abs(simDate.getTime() - _lastOrbitUpdate) > _orbitRebuildInterval) {
+      // Rebuild orbit ring: max ~10×/sec wall time at high speed, every 6 sim-hours otherwise
+      const wallNow   = Date.now();
+      const highSpeed = Math.abs(timeController.multiplier) >= 1000;
+      const orbitDue  = highSpeed
+        ? (wallNow - _lastOrbitWallMs) > 100
+        : Math.abs(simDate.getTime() - _lastOrbitUpdate) > 6 * 3600 * 1000;
+      if (orbitDue) {
         rebuildOrbitRing(simDate);
         _lastOrbitUpdate = simDate.getTime();
+        _lastOrbitWallMs = wallNow;
       }
 
-      const sunDir    = astronomyEngine.getSunDirection(simDate);
-
-      // Sun light direction
-      sunLight.position.copy(sunDir).multiplyScalar(1000);
+      // Sun light direction (sunDir pre-computed inside getMoonState — no extra call needed)
+      sunLight.position.copy(moonState.sunDir).multiplyScalar(1000);
 
       // Earth rotation: use GMST so the terminator matches real-world time
       const JD_earth = astronomyEngine.julianDay(simDate);
