@@ -716,6 +716,28 @@
       orbitGeo.setFromPoints(pts);
       orbitGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     }
+    // ── Artemis II Scene Objects ──────────────────────────────────────────────
+    const spacecraftGeo = new THREE.SphereGeometry(0.09, 8, 8);
+    const spacecraftMat = new THREE.MeshBasicMaterial({ color: 0xff8c00, depthTest: false });
+    const spacecraftMesh = new THREE.Mesh(spacecraftGeo, spacecraftMat);
+    spacecraftMesh.visible = false;
+    scene.add(spacecraftMesh);
+
+    // Translucent glow halo — child of spacecraft so it follows automatically
+    const spacecraftGlowGeo = new THREE.SphereGeometry(0.14, 8, 8);
+    const spacecraftGlowMat = new THREE.MeshBasicMaterial({
+      color: 0xff8c00, transparent: true, opacity: 0.25, depthTest: false,
+    });
+    spacecraftMesh.add(new THREE.Mesh(spacecraftGlowGeo, spacecraftGlowMat));
+
+    const trajectoryGeo  = new THREE.BufferGeometry();
+    const trajectoryMat  = new THREE.LineBasicMaterial({
+      color: 0xff8c00, transparent: true, opacity: 0.45, depthWrite: false,
+    });
+    const trajectoryLine = new THREE.Line(trajectoryGeo, trajectoryMat);
+    trajectoryLine.visible = false;
+    scene.add(trajectoryLine);
+
     // ── Button wiring ────────────────────────────────────────────────────────
     const speedLabel = document.getElementById('speed-label');
     const liveBtn    = document.getElementById('btn-live');
