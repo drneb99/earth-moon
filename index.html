@@ -530,6 +530,65 @@
       savedIsLive:     false,
       trajectory:      null, // { curve, points } — populated by buildArtemisTrajectory()
     };
+
+    function buildArtemisTrajectory() {
+      const launchMs = ARTEMIS2.launch.getTime();
+
+      // Sample actual Moon positions at key mission times
+      const moonAtT60   = astronomyEngine.getMoonState(new Date(launchMs + 60  * 3600000));
+      const moonAtFlyby = astronomyEngine.getMoonState(ARTEMIS2.flyby);
+      const moonAtT169  = astronomyEngine.getMoonState(new Date(launchMs + 169 * 3600000));
+
+      // WP0 — Launch: small offset from Earth toward Moon's early position
+      const wp0 = moonAtT60.scenePos.clone().normalize().multiplyScalar(0.4);
+
+      // WP1 — Translunar midpoint (~52% of the way to the Moon at T+60h)
+      const wp1 = moonAtT60.scenePos.clone().multiplyScalar(0.52);
+
+      // WP2 — Closest approach: 8,287 km from Moon center on the Earth-facing side
+      //        (Artemis 2 passed on the near side at ~6,550 km altitude)
+      const toEarth = new THREE.Vector3(0, 0, 0).sub(moonAtFlyby.scenePos).normalize();
+      const wp2     = moonAtFlyby.scenePos.clone().addScaledVector(toEarth, ARTEMIS2.flybyDistKm / 10000);
+
+      // WP3 — Return midpoint (~48% of the way back, based on Moon position at T+169h)
+      const wp3 = moonAtT169.scenePos.clone().multiplyScalar(0.48);
+
+      // WP4 — Splashdown: small offset from Earth from the return direction
+      const wp4 = moonAtT169.scenePos.clone().normalize().multiplyScalar(0.35);
+
+      const curve  = new THREE.CatmullRomCurve3([wp0, wp1, wp2, wp3, wp4], false, 'catmullrom', 0.5);
+      const points = curve.getPoints(500);
+      return { curve, points };
+    }
+
+    // Returns the spacecraft's Vector3 scene position for the given sim date,
+    // or null if outside the mission window (before launch or after splashdown).
+    function getSpacecraftPosition(simDate) {
+      if (!artemisState.trajectory) return null;
+      const elapsed = simDate.getTime() - ARTEMIS2.launch.getTime();
+      if (elapsed < 0 || elapsed > ARTEMIS2_TOTAL_MS) return null;
+      return artemisState.trajectory.curve.getPoint(elapsed / ARTEMIS2_TOTAL_MS);
+    }
+
+    function getArtemisPhase(elapsedMs) {
+      const h = elapsedMs / 3600000;
+      if (h <   0) return null;
+      if (h <   6) return 'Trans-Lunar Injection';
+      if (h < 114) return 'Translunar Coast';
+      if (h < 128) return 'Lunar Flyby';
+      if (h < 218) return 'Return Coast';
+      return null; // post-splashdown
+    }
+
+    function formatMET(elapsedMs) {
+      if (elapsedMs < 0) return '\u2014';
+      const totalSec = Math.floor(elapsedMs / 1000);
+      const days = Math.floor(totalSec / 86400);
+      const hrs  = Math.floor((totalSec % 86400) / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      return `FD ${days + 1} / ${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+    }
     // ── Starfield ────────────────────────────────────────────────────────────
     (function buildStars() {
       const count = 3000;
