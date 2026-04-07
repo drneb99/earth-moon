@@ -549,22 +549,34 @@
 
     const orbitGeo = new THREE.BufferGeometry();
     const orbitMat = new THREE.LineBasicMaterial({
-      color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
+      vertexColors: true, transparent: true, depthWrite: false,
     });
-    const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
+    const orbitLine = new THREE.Line(orbitGeo, orbitMat);
     scene.add(orbitLine);
 
     let _lastOrbitUpdate = 0; // simTime when orbit was last resampled
 
     function rebuildOrbitRing(centerDate) {
       const samples = 180;
-      const pts = [];
-      const start = centerDate.getTime() - ORBITAL_PERIOD_MS / 2;
+      const pts     = [];
+      const colors  = [];
+      const start   = centerDate.getTime(); // start exactly at current sim time
+
       for (let i = 0; i < samples; i++) {
         const t = start + (i / samples) * ORBITAL_PERIOD_MS;
         pts.push(astronomyEngine.getMoonState(new Date(t)).scenePos.clone());
+
+        // Fade the last 30% of the orbit to black so the open end disappears naturally
+        const tNorm      = i / (samples - 1);
+        const fadeStart  = 0.70;
+        const brightness = tNorm < fadeStart
+          ? 0.55
+          : 0.55 * (1 - (tNorm - fadeStart) / (1 - fadeStart));
+        colors.push(brightness, brightness, brightness);
       }
+
       orbitGeo.setFromPoints(pts);
+      orbitGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     }
     // ── Button wiring ────────────────────────────────────────────────────────
     const speedLabel = document.getElementById('speed-label');
