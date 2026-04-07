@@ -169,6 +169,7 @@
       <button class="ctrl-btn speed-btn" id="btn-fwd2">▶▶ 1000×</button>
       <button class="ctrl-btn speed-btn" id="btn-fwd3">▶▶▶ 100k×</button>
       <button class="ctrl-btn active" id="btn-live">● LIVE</button>
+      <button class="ctrl-btn active" id="btn-orbit">⊙ Orbit</button>
     </div>
   </div>
 
@@ -615,6 +616,11 @@
       speedLabel.textContent = 'LIVE \u2014 1\u00d7';
     });
 
+    document.getElementById('btn-orbit').addEventListener('click', function() {
+      const visible = orbitLine.visible = !orbitLine.visible;
+      this.classList.toggle('active', visible);
+    });
+
     // ── Focus / click-to-target ───────────────────────────────────────────────
     let focusTarget   = 'earth';                    // 'earth' | 'moon'
     const _lerpTarget = new THREE.Vector3();        // current lerped controls.target
@@ -692,8 +698,11 @@
       const simDate   = timeController.tick();
       const moonState = astronomyEngine.getMoonState(simDate);
 
-      // Rebuild orbit ring if sim time has shifted by more than 6 sim-hours
-      if (Math.abs(simDate.getTime() - _lastOrbitUpdate) > 6 * 3600 * 1000) {
+      // Rebuild orbit ring: every frame at high speed, every 6 sim-hours otherwise
+      const _orbitRebuildInterval = Math.abs(timeController.multiplier) >= 1000
+        ? 0
+        : 6 * 3600 * 1000;
+      if (Math.abs(simDate.getTime() - _lastOrbitUpdate) > _orbitRebuildInterval) {
         rebuildOrbitRing(simDate);
         _lastOrbitUpdate = simDate.getTime();
       }
