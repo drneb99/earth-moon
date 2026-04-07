@@ -551,7 +551,7 @@
     const orbitMat = new THREE.LineBasicMaterial({
       color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false,
     });
-    const orbitLine = new THREE.Line(orbitGeo, orbitMat);
+    const orbitLine = new THREE.LineLoop(orbitGeo, orbitMat);
     scene.add(orbitLine);
 
     let _lastOrbitUpdate = 0; // simTime when orbit was last resampled
@@ -560,7 +560,7 @@
       const samples = 180;
       const pts = [];
       const start = centerDate.getTime() - ORBITAL_PERIOD_MS / 2;
-      for (let i = 0; i <= samples; i++) {
+      for (let i = 0; i < samples; i++) {
         const t = start + (i / samples) * ORBITAL_PERIOD_MS;
         pts.push(astronomyEngine.getMoonState(new Date(t)).scenePos.clone());
       }
