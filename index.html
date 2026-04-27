@@ -600,15 +600,49 @@
     nightMesh.scale.setScalar(1.001); // tiny offset to avoid z-fighting
     earthMesh.add(nightMesh); // child of earthMesh — inherits GMST rotation automatically
 
-    // Atmosphere halo
-    const atmGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.02, 64, 64);
-    const atmMat = new THREE.MeshPhongMaterial({
-      color:       0x4488ff,
-      transparent: true,
-      opacity:     0.08,
-      side:        THREE.FrontSide,
+    // ── Atmosphere glow (Fresnel rim shader, day/night aware) ────────────────
+    const atmGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.015, 64, 64);
+    const atmMat = new THREE.ShaderMaterial({
+      uniforms: {
+        sunDir:  { value: new THREE.Vector3(1, 0, 0) },
+        camDist: { value: 10.0 },
+      },
+      vertexShader: `
+        varying vec3 vWorldNormal;
+        varying vec3 vViewNormal;
+        void main() {
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          vViewNormal  = normalize(normalMatrix * normal);
+          gl_Position  = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3  sunDir;
+        uniform float camDist;
+        varying vec3 vWorldNormal;
+        varying vec3 vViewNormal;
+        void main() {
+          // Very tight Fresnel — thin band at the limb only, widens slightly when close
+          float t = smoothstep(4.0, 30.0, camDist);
+          float fresnelPow = mix(4.0, 9.0, t);
+          float rim = pow(max(1.0 - dot(vViewNormal, vec3(0.0, 0.0, 1.0)), 0.0), fresnelPow);
+          // Day side glows, night side has only faint bleed (scattered light)
+          float day = smoothstep(-0.05, 0.35, dot(vWorldNormal, sunDir));
+          // Terminator gets a subtle warm tint (like a sunset band seen from orbit)
+          float terminator = exp(-12.0 * abs(dot(vWorldNormal, sunDir)));
+          // Fade quickly with distance — from lunar range it should be nearly invisible
+          float distFade = 1.0 - smoothstep(12.0, 40.0, camDist);
+          float intensity = rim * (0.1 + 0.9 * day) * distFade * 0.85;
+          vec3 dayColor  = vec3(0.3, 0.6, 1.0);
+          vec3 termColor = vec3(0.9, 0.5, 0.2);
+          vec3 color = mix(dayColor, termColor, terminator * day * 0.5);
+          gl_FragColor = vec4(color * intensity, intensity);
+        }
+      `,
+      side:        THREE.BackSide,
       blending:    THREE.AdditiveBlending,
       depthWrite:  false,
+      transparent: true,
     });
     earthGroup.add(new THREE.Mesh(atmGeo, atmMat));
 
@@ -967,6 +1001,34 @@
           };
         },
       },
+      {
+        title: 'The Atmosphere Sweet Spot',
+        body:  "Earth's atmosphere is only ~100 km thick — about 1.6% of its radius. To see it as a glowing blue rim you need to be roughly 5,000–20,000 km out. Too close and you're skimming through the top of it, seeing only a hazy horizon (like astronauts on the ISS at 400 km). Too far and it shrinks to a hair-thin edge — from the Moon's 384,400 km it's barely visible at all.",
+        getCamera() {
+          const side = new THREE.Vector3().crossVectors(_lastSunDir, new THREE.Vector3(0, 1, 0)).normalize();
+          const pos  = _lastSunDir.clone().multiplyScalar(3).add(side.clone().multiplyScalar(2)).add(new THREE.Vector3(0, 1.5, 0));
+          return { pos, target: new THREE.Vector3(0, 0, 0) };
+        },
+      },
+      {
+        title: 'Why the Atmosphere is Blue',
+        body:  "The atmosphere glows blue because of Rayleigh scattering — air molecules deflect short (blue) wavelengths of sunlight far more than long (red) ones. The same physics makes our sky blue from the ground. Look at the terminator: where day meets night, sunlight grazes through a much thicker slice of atmosphere, scattering away all the blue and leaving the warm orange and red of a perpetual sunrise visible from orbit.",
+        getCamera() {
+          const perp = new THREE.Vector3().crossVectors(_lastSunDir, new THREE.Vector3(0, 1, 0)).normalize();
+          return {
+            pos:    perp.clone().multiplyScalar(5).add(new THREE.Vector3(0, 2, 0)),
+            target: new THREE.Vector3(0, 0, 0),
+          };
+        },
+      },
+      {
+        title: "Earth's Terrain from Space",
+        body:  "The mountain shading on Earth's surface uses NASA's GEBCO elevation dataset — a global map of topography and ocean bathymetry built from satellite radar, ship sonar, and GPS surveys. Every ridge in the Himalayas, trench in the Pacific, and rise along the mid-ocean ridges is encoded in the texture that shapes how sunlight falls across the surface.",
+        getCamera() {
+          const pos = _lastSunDir.clone().multiplyScalar(4).add(new THREE.Vector3(0, 1, 0));
+          return { pos, target: new THREE.Vector3(0, 0, 0) };
+        },
+      },
     ];
 
     const lessonState = { active: false, index: 0, savedIsLive: false, savedMult: 1, savedPaused: false, savedSimTime: 0 };
@@ -1039,6 +1101,9 @@
     function animate() {
       requestAnimationFrame(animate);
 
+      // Scale rotation speed with distance so dragging feels consistent at all zoom levels
+      controls.rotateSpeed = Math.min(1.0, Math.max(0.08, camera.position.distanceTo(controls.target) / 30));
+
       const simDate   = timeController.tick();
       const moonState = astronomyEngine.getMoonState(simDate);
 
@@ -1057,6 +1122,8 @@
       // Sun light direction (sunDir pre-computed inside getMoonState — no extra call needed)
       sunLight.position.copy(moonState.sunDir).multiplyScalar(1000);
       nightMat.uniforms.sunDir.value.copy(moonState.sunDir);
+      atmMat.uniforms.sunDir.value.copy(moonState.sunDir);
+      atmMat.uniforms.camDist.value = camera.position.length();
       _lastSunDir.copy(moonState.sunDir);
 
       // Earth rotation: use GMST so the terminator matches real-world time
