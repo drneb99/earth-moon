@@ -862,11 +862,16 @@
         focusNameEl.textContent = 'Moon';
         controls.minDistance = 0.65;
         setSpeedButtonsVisible(false);
+        const mp   = moonMesh.position.clone();
+        const dir  = mp.clone().normalize();
+        const perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+        flyTo(mp.clone().addScaledVector(dir, 2.0).addScaledVector(perp, 0.8).addScaledVector(new THREE.Vector3(0,1,0), 0.5), mp);
       } else if (earthHit.length > 0) {
         focusTarget = 'earth';
         focusNameEl.textContent = 'Earth';
         controls.minDistance = 2.5;
         setSpeedButtonsVisible(true);
+        flyTo(new THREE.Vector3(0, 4, 10), new THREE.Vector3(0, 0, 0));
       }
     });
 
@@ -1102,7 +1107,8 @@
       requestAnimationFrame(animate);
 
       // Scale rotation speed with distance so dragging feels consistent at all zoom levels
-      controls.rotateSpeed = Math.min(1.0, Math.max(0.08, camera.position.distanceTo(controls.target) / 30));
+      const _speedDivisor = focusTarget === 'moon' ? 10 : 30;
+      controls.rotateSpeed = Math.min(1.0, Math.max(0.08, camera.position.distanceTo(controls.target) / _speedDivisor));
 
       const simDate   = timeController.tick();
       const moonState = astronomyEngine.getMoonState(simDate);
@@ -1147,6 +1153,7 @@
         if (t >= 1) {
           cameraAnim.active = false;
           controls.enabled  = true;
+          _lerpTarget.copy(cameraAnim.endTarget);
           controls.update();
         }
       } else {
