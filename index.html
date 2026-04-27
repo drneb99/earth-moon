@@ -562,7 +562,7 @@
     earthGroup.add(earthMesh);
 
     // ── Night lights (city glow on dark side) ────────────────────────────────
-    const nightTex = texLoader.load('./earth_night.jpg');
+    const nightTex = texLoader.load('./images/earth_night.jpg');
     nightTex.colorSpace = THREE.SRGBColorSpace;
     const nightMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -617,7 +617,7 @@
     const MOON_RADIUS = 0.545;
 
     const moonGeo  = new THREE.SphereGeometry(MOON_RADIUS, 48, 48);
-    const moonTex  = texLoader.load('./moon_4k.jpg');
+    const moonTex  = texLoader.load('./images/moon_4k.jpg');
     moonTex.colorSpace = THREE.SRGBColorSpace;
     const moonMat  = new THREE.MeshPhongMaterial({
       map:       moonTex,
