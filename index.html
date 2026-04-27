@@ -552,10 +552,10 @@
     earthGroup.rotation.x = -EARTH_TILT_RAD;
     scene.add(earthGroup);
 
-    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
+    const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 128, 128);
     const earthMat = new THREE.MeshPhongMaterial({
       map:         texLoader.load('./images/earth_atmos_2048.jpg',    undefined, undefined, onTexError('./images/earth_atmos_2048.jpg')),
-      normalMap:   texLoader.load('./images/earth_normal_2048.jpg',   undefined, undefined, onTexError('./images/earth_normal_2048.jpg')),
+      normalMap:   texLoader.load('./images/earth_normal_4k.jpg',     undefined, undefined, onTexError('./images/earth_normal_4k.jpg')),
       normalScale: new THREE.Vector2(0.85, 0.85),
       specularMap: texLoader.load('./images/earth_specular_2048.jpg', undefined, undefined, onTexError('./images/earth_specular_2048.jpg')),
       specular:    new THREE.Color(0x4466aa),
