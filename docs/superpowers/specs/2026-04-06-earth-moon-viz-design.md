@@ -9,7 +9,7 @@ A browser-native, scientifically accurate Earth-Moon observatory. The primary di
 
 1. **Live snapshot** — Open the app and immediately see where the Moon is right now, which face points at Earth, and its current distance/phase.
 2. **Tidal locking demo** — Accelerate time and watch the Moon orbit Earth while its same face stays locked toward us. The "aha moment" for understanding synchronous rotation.
-3. **Trajectory intuition** — Scrub time forward/back to understand where the Moon will be for events like Artemis 2, full moons, perigee/apogee.
+3. **Time travel** — Scrub time forward/back to understand where the Moon will be for upcoming full moons, perigee/apogee, and historical positions.
 
 ## Architecture
 

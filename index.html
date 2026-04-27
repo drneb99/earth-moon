@@ -106,26 +106,6 @@
       #focus-indicator { font-size: 11px; top: 8px; right: 8px; padding: 6px 10px; }
     }
 
-    #artemis-card {
-      position: fixed; top: 110px; right: 16px;
-      background: rgba(0,0,0,0.65);
-      border: 1px solid rgba(255,140,0,0.3);
-      border-radius: 8px;
-      padding: 10px 14px;
-      color: #e0e0e0;
-      font-family: 'Courier New', monospace;
-      font-size: 12px;
-      line-height: 1.7;
-      min-width: 190px;
-      user-select: none;
-      backdrop-filter: blur(4px);
-      display: none;
-    }
-    #artemis-card.visible { display: block; }
-    @media (max-width: 480px) {
-      #artemis-card { font-size: 11px; top: 90px; right: 8px; padding: 6px 10px; }
-    }
-
     #hud-coords { display: none; border-top: 1px solid rgba(255,255,255,0.08); margin-top: 6px; padding-top: 6px; }
     #hud-coords.visible { display: block; }
     #coords-toggle {
@@ -135,6 +115,31 @@
       transition: color 0.15s;
     }
     #coords-toggle:hover { color: #aaa; }
+
+    #lesson-card {
+      position: fixed; bottom: 110px; left: 16px;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(100,200,255,0.2);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      max-width: 290px;
+      user-select: none;
+      backdrop-filter: blur(4px);
+      display: none;
+    }
+    #lesson-card.visible { display: block; }
+    #lesson-counter { font-size: 10px; color: #555; letter-spacing: 1px; margin-bottom: 4px; }
+    #lesson-title   { font-size: 13px; color: #7df; font-weight: bold; margin-bottom: 8px; }
+    #lesson-body    { color: #bbb; margin-bottom: 12px; }
+    .lesson-nav     { display: flex; gap: 6px; }
+    .lesson-nav .ctrl-btn { flex: 1; text-align: center; }
+    @media (max-width: 480px) {
+      #lesson-card { font-size: 11px; max-width: 230px; bottom: 120px; }
+    }
   </style>
 </head>
 <body>
@@ -198,7 +203,18 @@
       <button class="ctrl-btn speed-btn" id="btn-fwd3">▶▶▶ 100k×</button>
       <button class="ctrl-btn active" id="btn-live">● LIVE</button>
       <button class="ctrl-btn active" id="btn-orbit">⊙ Orbit</button>
-      <button class="ctrl-btn" id="btn-artemis">🚀 Artemis II</button>
+      <button class="ctrl-btn" id="btn-facts" style="display:none">💡 Facts</button>
+    </div>
+  </div>
+
+  <div id="lesson-card">
+    <div id="lesson-counter">1 / 5</div>
+    <div id="lesson-title"></div>
+    <div id="lesson-body"></div>
+    <div class="lesson-nav">
+      <button class="ctrl-btn" id="lesson-prev">◀ Prev</button>
+      <button class="ctrl-btn" id="lesson-close">✕ Close</button>
+      <button class="ctrl-btn" id="lesson-next">Next ▶</button>
     </div>
   </div>
 
@@ -210,29 +226,11 @@
     <div class="focus-hint">Click Earth or Moon to switch</div>
   </div>
 
-  <div id="artemis-card">
-    <div class="hud-title">🚀 Artemis II</div>
-    <div class="hud-row">
-      <span class="hud-label">MET</span>
-      <span class="hud-value" id="artemis-met">—</span>
-    </div>
-    <div class="hud-row">
-      <span class="hud-label">Phase</span>
-      <span class="hud-value" id="artemis-phase">—</span>
-    </div>
-    <div class="hud-row">
-      <span class="hud-label" style="align-self:flex-start">Crew</span>
-      <span class="hud-value" style="font-size:10px;line-height:1.6;text-align:right">
-        Wiseman · Glover<br>Koch · Hansen
-      </span>
-    </div>
-  </div>
-
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
     }
   }
   </script>
@@ -255,7 +253,7 @@
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 5;
+    controls.minDistance = 2.5;
     controls.maxDistance = 500;
 
     window.addEventListener('resize', () => {
@@ -512,83 +510,6 @@
         this._lastWall = Date.now();
       }
     };
-    // ── Artemis II Mission Data ───────────────────────────────────────────────
-    const ARTEMIS2 = {
-      launch:      new Date('2026-04-01T22:24:00Z'),
-      flyby:       new Date('2026-04-06T23:02:00Z'),
-      splashdown:  new Date('2026-04-11T00:07:00Z'),
-      // Moon radius 1,737 km + flyby altitude 6,550 km = 8,287 km from Moon center
-      flybyDistKm: 8287,
-    };
-    const ARTEMIS2_TOTAL_MS = ARTEMIS2.splashdown.getTime() - ARTEMIS2.launch.getTime();
-    const ARTEMIS2_FLYBY_MS = ARTEMIS2.flyby.getTime()      - ARTEMIS2.launch.getTime();
-
-    const artemisState = {
-      active:          false,
-      savedSimTime:    0,
-      savedMultiplier: 1,
-      savedIsLive:     false,
-      trajectory:      null, // { curve, points } — populated by buildArtemisTrajectory()
-    };
-
-    function buildArtemisTrajectory() {
-      const launchMs = ARTEMIS2.launch.getTime();
-
-      // Sample actual Moon positions at key mission times
-      const moonAtT60   = astronomyEngine.getMoonState(new Date(launchMs + 60  * 3600000));
-      const moonAtFlyby = astronomyEngine.getMoonState(ARTEMIS2.flyby);
-      const moonAtT169  = astronomyEngine.getMoonState(new Date(launchMs + 169 * 3600000));
-
-      // WP0 — Launch: small offset from Earth toward Moon's early position
-      const wp0 = moonAtT60.scenePos.clone().normalize().multiplyScalar(0.4);
-
-      // WP1 — Translunar midpoint (~52% of the way to the Moon at T+60h)
-      const wp1 = moonAtT60.scenePos.clone().multiplyScalar(0.52);
-
-      // WP2 — Closest approach: 8,287 km from Moon center on the Earth-facing side
-      //        (Artemis 2 passed on the near side at ~6,550 km altitude)
-      const toEarth = new THREE.Vector3(0, 0, 0).sub(moonAtFlyby.scenePos).normalize();
-      const wp2     = moonAtFlyby.scenePos.clone().addScaledVector(toEarth, ARTEMIS2.flybyDistKm / 10000);
-
-      // WP3 — Return midpoint (~48% of the way back, based on Moon position at T+169h)
-      const wp3 = moonAtT169.scenePos.clone().multiplyScalar(0.48);
-
-      // WP4 — Splashdown: small offset from Earth from the return direction
-      const wp4 = moonAtT169.scenePos.clone().normalize().multiplyScalar(0.35);
-
-      const curve  = new THREE.CatmullRomCurve3([wp0, wp1, wp2, wp3, wp4], false, 'catmullrom', 0.5);
-      const points = curve.getPoints(500);
-      return { curve, points };
-    }
-
-    // Returns the spacecraft's Vector3 scene position for the given sim date,
-    // or null if outside the mission window (before launch or after splashdown).
-    function getSpacecraftPosition(simDate) {
-      if (!artemisState.trajectory) return null;
-      const elapsed = simDate.getTime() - ARTEMIS2.launch.getTime();
-      if (elapsed < 0 || elapsed > ARTEMIS2_TOTAL_MS) return null;
-      return artemisState.trajectory.curve.getPoint(elapsed / ARTEMIS2_TOTAL_MS);
-    }
-
-    function getArtemisPhase(elapsedMs) {
-      const h = elapsedMs / 3600000;
-      if (h <   0) return null;
-      if (h <   6) return 'Trans-Lunar Injection';
-      if (h < 114) return 'Translunar Coast';
-      if (h < 128) return 'Lunar Flyby';
-      if (h < 218) return 'Return Coast';
-      return null; // post-splashdown
-    }
-
-    function formatMET(elapsedMs) {
-      if (elapsedMs < 0) return '\u2014';
-      const totalSec = Math.floor(elapsedMs / 1000);
-      const days = Math.floor(totalSec / 86400);
-      const hrs  = Math.floor((totalSec % 86400) / 3600);
-      const mins = Math.floor((totalSec % 3600) / 60);
-      const secs = totalSec % 60;
-      return `FD ${days + 1} / ${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
-    }
     // ── Starfield ────────────────────────────────────────────────────────────
     (function buildStars() {
       const count = 3000;
@@ -625,18 +546,56 @@
 
     const texLoader  = new THREE.TextureLoader();
     const earthGroup = new THREE.Group();
-    earthGroup.rotation.z = EARTH_TILT_RAD;
+    earthGroup.rotation.x = -EARTH_TILT_RAD;
     scene.add(earthGroup);
 
     const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMat = new THREE.MeshPhongMaterial({
       map:         texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
+      normalMap:   texLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg'),
+      normalScale: new THREE.Vector2(0.85, 0.85),
       specularMap: texLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
-      specular:    new THREE.Color(0x333333),
-      shininess:   15,
+      specular:    new THREE.Color(0x4466aa),
+      shininess:   30,
     });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
     earthGroup.add(earthMesh);
+
+    // ── Night lights (city glow on dark side) ────────────────────────────────
+    const nightTex = texLoader.load('./earth_night.jpg');
+    nightTex.colorSpace = THREE.SRGBColorSpace;
+    const nightMat = new THREE.ShaderMaterial({
+      uniforms: {
+        nightTex: { value: nightTex },
+        sunDir:   { value: new THREE.Vector3(1, 0, 0) },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        void main() {
+          vUv = uv;
+          vWorldNormal = normalize(mat3(modelMatrix) * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D nightTex;
+        uniform vec3 sunDir;
+        varying vec2 vUv;
+        varying vec3 vWorldNormal;
+        void main() {
+          float sun = dot(vWorldNormal, sunDir);
+          float night = smoothstep(0.1, -0.25, sun);
+          vec4 lights = texture2D(nightTex, vUv);
+          gl_FragColor = vec4(lights.rgb * night * 2.5, 1.0);
+        }
+      `,
+      blending:   THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const nightMesh = new THREE.Mesh(earthGeo, nightMat);
+    nightMesh.scale.setScalar(1.001); // tiny offset to avoid z-fighting
+    earthMesh.add(nightMesh); // child of earthMesh — inherits GMST rotation automatically
 
     // Atmosphere halo
     const atmGeo = new THREE.SphereGeometry(EARTH_RADIUS * 1.02, 64, 64);
@@ -658,8 +617,10 @@
     const MOON_RADIUS = 0.545;
 
     const moonGeo  = new THREE.SphereGeometry(MOON_RADIUS, 48, 48);
+    const moonTex  = texLoader.load('./moon_4k.jpg');
+    moonTex.colorSpace = THREE.SRGBColorSpace;
     const moonMat  = new THREE.MeshPhongMaterial({
-      map:       texLoader.load('https://threejs.org/examples/textures/planets/moon_1024.jpg'),
+      map:       moonTex,
       shininess: 5,
       specular:  new THREE.Color(0x111111),
     });
@@ -704,47 +665,28 @@
         const t = start + (i / samples) * ORBITAL_PERIOD_MS;
         pts.push(astronomyEngine.getMoonState(new Date(t)).scenePos.clone());
 
-        // Fade the last 30% of the orbit to black so the open end disappears naturally
-        const tNorm      = i / (samples - 1);
-        const fadeStart  = 0.70;
-        const brightness = tNorm < fadeStart
-          ? 0.55
-          : 0.55 * (1 - (tNorm - fadeStart) / (1 - fadeStart));
+        // Fade in over first 5% and fade out over last 30% so both ends dissolve cleanly
+        const tNorm     = i / (samples - 1);
+        const fadeInEnd = 0.05;
+        const fadeOut   = 0.70;
+        const brightness = tNorm < fadeInEnd
+          ? 0.55 * (tNorm / fadeInEnd)
+          : tNorm < fadeOut
+            ? 0.55
+            : 0.55 * (1 - (tNorm - fadeOut) / (1 - fadeOut));
         colors.push(brightness, brightness, brightness);
       }
 
       orbitGeo.setFromPoints(pts);
       orbitGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     }
-    // ── Artemis II Scene Objects ──────────────────────────────────────────────
-    const spacecraftGeo = new THREE.SphereGeometry(0.09, 8, 8);
-    const spacecraftMat = new THREE.MeshBasicMaterial({ color: 0xff8c00, depthTest: false });
-    const spacecraftMesh = new THREE.Mesh(spacecraftGeo, spacecraftMat);
-    spacecraftMesh.visible = false;
-    scene.add(spacecraftMesh);
-
-    // Translucent glow halo — child of spacecraft so it follows automatically
-    const spacecraftGlowGeo = new THREE.SphereGeometry(0.14, 8, 8);
-    const spacecraftGlowMat = new THREE.MeshBasicMaterial({
-      color: 0xff8c00, transparent: true, opacity: 0.25, depthTest: false,
-    });
-    spacecraftMesh.add(new THREE.Mesh(spacecraftGlowGeo, spacecraftGlowMat));
-
-    const trajectoryGeo  = new THREE.BufferGeometry();
-    const trajectoryMat  = new THREE.LineBasicMaterial({
-      color: 0xff8c00, transparent: true, opacity: 0.45, depthWrite: false,
-    });
-    const trajectoryLine = new THREE.Line(trajectoryGeo, trajectoryMat);
-    trajectoryLine.visible = false;
-    scene.add(trajectoryLine);
-
     // ── Button wiring ────────────────────────────────────────────────────────
     const speedLabel = document.getElementById('speed-label');
     const liveBtn    = document.getElementById('btn-live');
 
     function setActiveBtn(keepLive = false) {
       // Exclude #btn-orbit — its active state tracks visibility, not speed selection
-      document.querySelectorAll('.ctrl-btn:not(#btn-orbit):not(#btn-artemis)').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.ctrl-btn:not(#btn-orbit)').forEach(b => b.classList.remove('active'));
       if (keepLive) liveBtn.classList.add('active');
     }
 
@@ -782,62 +724,6 @@
     document.getElementById('btn-orbit').addEventListener('click', function() {
       const visible = orbitLine.visible = !orbitLine.visible;
       this.classList.toggle('active', visible);
-    });
-
-    document.getElementById('btn-artemis').addEventListener('click', function () {
-      if (!artemisState.active) {
-        // ── Toggle ON ──
-        artemisState.active          = true;
-        artemisState.savedSimTime    = timeController.simTime;
-        artemisState.savedMultiplier = timeController.multiplier;
-        artemisState.savedIsLive     = timeController.isLive;
-
-        // Compute trajectory and populate geometry
-        artemisState.trajectory = buildArtemisTrajectory();
-        trajectoryGeo.setFromPoints(artemisState.trajectory.points);
-        trajectoryLine.visible   = true;
-        spacecraftMesh.visible   = true;
-        artemisCardEl.classList.add('visible');
-
-        // Jump to launch time at 1000×
-        timeController.setSpeed(1000);
-        timeController.simTime   = ARTEMIS2.launch.getTime();
-        timeController._lastWall = Date.now();
-
-        speedLabel.textContent = '\u25ba\u25ba 1,000\u00d7';
-        setActiveBtn(false);
-        document.getElementById('btn-fwd2').classList.add('active');
-        this.classList.add('active');
-
-      } else {
-        // ── Toggle OFF ──
-        artemisState.active = false;
-        trajectoryLine.visible  = false;
-        spacecraftMesh.visible  = false;
-        artemisCardEl.classList.remove('visible');
-
-        // Restore sim state
-        if (artemisState.savedIsLive) {
-          timeController.goLive();
-          speedLabel.textContent = 'LIVE \u2014 1\u00d7';
-          setActiveBtn(true);
-        } else {
-          timeController.simTime    = artemisState.savedSimTime;
-          timeController.multiplier = artemisState.savedMultiplier;
-          timeController.isLive     = false;
-          timeController.paused     = false;
-          timeController._lastWall  = Date.now();
-          const mult = artemisState.savedMultiplier;
-          const dir  = mult < 0 ? '\u25c4 ' : '\u25ba ';
-          speedLabel.textContent = dir + Math.abs(mult).toLocaleString() + '\u00d7' + (mult < 0 ? ' (reverse)' : '');
-          setActiveBtn(false);
-          const btnMap = { '100': 'btn-fwd1', '1000': 'btn-fwd2', '100000': 'btn-fwd3',
-                           '-100': 'btn-rev1', '-1000': 'btn-rev2', '-100000': 'btn-rev3' };
-          const matchBtn = document.getElementById(btnMap[String(mult)]);
-          if (matchBtn) matchBtn.classList.add('active');
-        }
-        this.classList.remove('active');
-      }
     });
 
     // ── Next Full Moon finder ─────────────────────────────────────────────────
@@ -933,10 +819,12 @@
       if (moonHit.length > 0) {
         focusTarget = 'moon';
         focusNameEl.textContent = 'Moon';
+        controls.minDistance = 0.65;
         setSpeedButtonsVisible(false);
       } else if (earthHit.length > 0) {
         focusTarget = 'earth';
         focusNameEl.textContent = 'Earth';
+        controls.minDistance = 2.5;
         setSpeedButtonsVisible(true);
       }
     });
@@ -955,11 +843,6 @@
       lat:        document.getElementById('hud-lat'),
     };
     const focusNameEl    = document.getElementById('focus-name');
-    const artemisCardEl  = document.getElementById('artemis-card');
-    const artemisCardEls = {
-      met:   document.getElementById('artemis-met'),
-      phase: document.getElementById('artemis-phase'),
-    };
 
     // ── Per-frame update ─────────────────────────────────────────────────────
     function updateHUD(date, moonState) {
@@ -997,6 +880,155 @@
       });
     })();
 
+    // ── Camera fly-to ─────────────────────────────────────────────────────────
+    const cameraAnim = {
+      active: false, duration: 1800, startTime: 0,
+      startPos:    new THREE.Vector3(),
+      endPos:      new THREE.Vector3(),
+      startTarget: new THREE.Vector3(),
+      endTarget:   new THREE.Vector3(),
+    };
+
+    function flyTo(endPos, endTarget, duration = 1800) {
+      cameraAnim.startPos.copy(camera.position);
+      cameraAnim.endPos.copy(endPos);
+      cameraAnim.startTarget.copy(controls.target);
+      cameraAnim.endTarget.copy(endTarget);
+      cameraAnim.startTime = Date.now();
+      cameraAnim.duration  = duration;
+      cameraAnim.active    = true;
+      controls.enabled     = false;
+    }
+
+    // ── Facts / Lessons ───────────────────────────────────────────────────────
+    let _lastSunDir = new THREE.Vector3(1, 0, 0);
+
+    const LESSONS = [
+      {
+        title: 'Axial Tilt',
+        body:  "Earth's axis tilts 23.44° from perpendicular to its orbit. This — not our distance from the Sun — causes the seasons. Notice the poles don't sit straight up and down. When the Northern Hemisphere tilts toward the Sun it's summer there and winter in the South.",
+        getCamera() {
+          return { pos: new THREE.Vector3(9, 4, 6), target: new THREE.Vector3(0, 0, 0) };
+        },
+      },
+      {
+        title: 'Tidal Locking',
+        body:  "The Moon always shows the same face to Earth. Earth's gravity gradually slowed the Moon's rotation over billions of years until its spin period matched its 27.3-day orbit exactly. The far side was completely unknown until Soviet spacecraft photographed it in 1959.",
+        getCamera() {
+          const mp   = moonMesh.position.clone();
+          const dir  = mp.clone().normalize();
+          const perp = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+          // Position past the Moon, offset sideways and up — looking back toward Earth
+          const pos = mp.clone()
+            .addScaledVector(dir,  3.5)
+            .addScaledVector(perp, 1.5)
+            .add(new THREE.Vector3(0, 3, 0));
+          return { pos, target: new THREE.Vector3(0, 0.5, 0) };
+        },
+      },
+      {
+        title: 'The Terminator',
+        body:  "The line dividing Earth's lit and dark sides is called the terminator. It's not a sharp edge — a gradual twilight zone (the penumbra) softens the boundary. Observers standing on the terminator see the Sun exactly on the horizon.",
+        getCamera() {
+          const perp = new THREE.Vector3().crossVectors(_lastSunDir, new THREE.Vector3(0, 1, 0)).normalize();
+          return {
+            pos:    perp.multiplyScalar(8).add(new THREE.Vector3(0, 3, 0)),
+            target: new THREE.Vector3(0, 0, 0),
+          };
+        },
+      },
+      {
+        title: 'Earth–Moon Distance',
+        body:  "The Moon averages 384,400 km away — about 30 Earth-diameters. If Earth were a basketball, the Moon would be a tennis ball 7 meters away. Distance varies from ~362,000 km (perigee) to ~405,500 km (apogee), which creates the noticeable size difference between supermoons and micromoons.",
+        getCamera() {
+          const mp  = moonMesh.position.clone();
+          const mid = mp.clone().multiplyScalar(0.45);
+          return {
+            pos:    mid.clone().add(new THREE.Vector3(0, 22, 30)),
+            target: mid,
+          };
+        },
+      },
+      {
+        title: 'City Lights',
+        body:  "The glow on Earth's dark side is real NASA data — the 2016 'Black Marble' composite from the Suomi NPP satellite. The brightest clusters are Western Europe, the US East Coast, Japan, and India's Ganges Plain. In remote oceans you can spot fishing fleets using bright lights to attract squid.",
+        getCamera() {
+          const darkDir = _lastSunDir.clone().negate().normalize();
+          return {
+            pos:    darkDir.multiplyScalar(7).add(new THREE.Vector3(0, 2, 0)),
+            target: new THREE.Vector3(0, 0, 0),
+          };
+        },
+      },
+    ];
+
+    const lessonState = { active: false, index: 0, savedIsLive: false, savedMult: 1, savedPaused: false, savedSimTime: 0 };
+    const lessonCardEl    = document.getElementById('lesson-card');
+    const lessonTitleEl   = document.getElementById('lesson-title');
+    const lessonBodyEl    = document.getElementById('lesson-body');
+    const lessonCounterEl = document.getElementById('lesson-counter');
+
+    function showLesson(idx) {
+      const lesson = LESSONS[idx];
+      lessonState.index = idx;
+      lessonCounterEl.textContent = (idx + 1) + ' / ' + LESSONS.length;
+      lessonTitleEl.textContent   = lesson.title;
+      lessonBodyEl.textContent    = lesson.body;
+      document.getElementById('lesson-prev').style.opacity = idx === 0 ? '0.3' : '1';
+      document.getElementById('lesson-next').style.opacity = idx === LESSONS.length - 1 ? '0.3' : '1';
+      const cam = lesson.getCamera();
+      flyTo(cam.pos, cam.target);
+    }
+
+    function openLessons() {
+      if (lessonState.active) return;
+      lessonState.active      = true;
+      lessonState.savedIsLive = timeController.isLive;
+      lessonState.savedMult   = timeController.multiplier;
+      lessonState.savedPaused = timeController.paused;
+      lessonState.savedSimTime = timeController.simTime;
+      if (!timeController.paused) {
+        _prePauseLabel = speedLabel.textContent;
+        timeController.isLive    = false;
+        timeController.paused    = true;
+        timeController._lastWall = Date.now();
+        setActiveBtn(false);
+        document.getElementById('btn-pause').classList.add('active');
+        speedLabel.textContent = '\u23f8 Paused';
+      }
+      lessonCardEl.classList.add('visible');
+      document.getElementById('btn-facts').classList.add('active');
+      showLesson(0);
+    }
+
+    function closeLessons() {
+      lessonState.active = false;
+      _lerpTarget.copy(controls.target); // start lerp from current position, not Earth origin
+      lessonCardEl.classList.remove('visible');
+      document.getElementById('btn-facts').classList.remove('active');
+      controls.enabled = true;
+      if (lessonState.savedIsLive) {
+        timeController.goLive();
+        speedLabel.textContent = 'LIVE \u2014 1\u00d7';
+        setActiveBtn(true);
+      } else {
+        timeController.simTime    = lessonState.savedSimTime;
+        timeController.multiplier = lessonState.savedMult;
+        timeController.isLive     = false;
+        timeController.paused     = lessonState.savedPaused;
+        timeController._lastWall  = Date.now();
+      }
+    }
+
+    document.getElementById('btn-facts').addEventListener('click', openLessons);
+    document.getElementById('lesson-close').addEventListener('click', closeLessons);
+    document.getElementById('lesson-prev').addEventListener('click', () => {
+      if (lessonState.index > 0) showLesson(lessonState.index - 1);
+    });
+    document.getElementById('lesson-next').addEventListener('click', () => {
+      if (lessonState.index < LESSONS.length - 1) showLesson(lessonState.index + 1);
+    });
+
     function animate() {
       requestAnimationFrame(animate);
 
@@ -1017,6 +1049,8 @@
 
       // Sun light direction (sunDir pre-computed inside getMoonState — no extra call needed)
       sunLight.position.copy(moonState.sunDir).multiplyScalar(1000);
+      nightMat.uniforms.sunDir.value.copy(moonState.sunDir);
+      _lastSunDir.copy(moonState.sunDir);
 
       // Earth rotation: use GMST so the terminator matches real-world time
       const JD_earth = astronomyEngine.julianDay(simDate);
@@ -1029,33 +1063,28 @@
       // HUD
       updateHUD(simDate, moonState);
 
-      // Artemis II per-frame update
-      if (artemisState.active) {
-        const pos = getSpacecraftPosition(simDate);
-        if (pos) {
-          spacecraftMesh.visible = true;
-          spacecraftMesh.position.copy(pos);
-          // Pulse uses wall clock so it's independent of sim speed
-          spacecraftMesh.scale.setScalar(1 + 0.35 * Math.sin(Date.now() * 0.004));
-          const elapsedMs = simDate.getTime() - ARTEMIS2.launch.getTime();
-          artemisCardEls.met.textContent   = formatMET(elapsedMs);
-          artemisCardEls.phase.textContent = getArtemisPhase(elapsedMs) || 'Complete';
-        } else {
-          spacecraftMesh.visible = false;
-          const elapsedMs = simDate.getTime() - ARTEMIS2.launch.getTime();
-          artemisCardEls.met.textContent   = elapsedMs < 0 ? 'Pre-launch' : 'Mission Complete';
-          artemisCardEls.phase.textContent = '\u2014';
+      // Camera fly-to (lessons) or normal target lerp
+      if (cameraAnim.active) {
+        const t    = Math.min((Date.now() - cameraAnim.startTime) / cameraAnim.duration, 1);
+        const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+        camera.position.lerpVectors(cameraAnim.startPos, cameraAnim.endPos, ease);
+        controls.target.lerpVectors(cameraAnim.startTarget, cameraAnim.endTarget, ease);
+        camera.lookAt(controls.target);
+        if (t >= 1) {
+          cameraAnim.active = false;
+          controls.enabled  = true;
+          controls.update();
         }
+      } else {
+        if (!lessonState.active) {
+          const dest = focusTarget === 'moon'
+            ? _moonTarget.copy(moonMesh.position)
+            : _earthOrigin;
+          _lerpTarget.lerp(dest, 0.06);
+          controls.target.copy(_lerpTarget);
+        }
+        controls.update();
       }
-
-      // Smooth camera target: lerp toward focused body
-      const dest = focusTarget === 'moon'
-        ? _moonTarget.copy(moonMesh.position)
-        : _earthOrigin;
-      _lerpTarget.lerp(dest, 0.06);
-      controls.target.copy(_lerpTarget);
-
-      controls.update();
       renderer.render(scene, camera);
     }
     animate();
