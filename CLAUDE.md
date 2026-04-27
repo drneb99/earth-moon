@@ -19,6 +19,21 @@ python3 -m http.server 8181
 
 There are no tests, no linter, and no build step.
 
+## Git workflow
+
+Remote: `https://github.com/drneb99/earth-moon.git` (branch: `master`)
+
+**Always ask the user for confirmation before pushing.** Commit freely during a session, but only run `git push` after the user explicitly approves. When pushing:
+
+```bash
+git push origin master
+```
+
+On a new machine, clone with:
+```bash
+git clone https://github.com/drneb99/earth-moon.git
+```
+
 ## Architecture
 
 ### Coordinate system
