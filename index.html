@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; frame-ancestors 'none'"  />
   <title>Earth–Moon Observatory</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -229,8 +230,8 @@
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+      "three": "/lib/three/three.module.js",
+      "three/addons/": "/lib/three/addons/"
     }
   }
   </script>
@@ -545,16 +546,18 @@
     const EARTH_TILT_RAD = 23.44 * Math.PI / 180;
 
     const texLoader  = new THREE.TextureLoader();
+    texLoader.crossOrigin = 'anonymous';
+    const onTexError = (url) => () => console.warn(`Texture failed to load: ${url}`);
     const earthGroup = new THREE.Group();
     earthGroup.rotation.x = -EARTH_TILT_RAD;
     scene.add(earthGroup);
 
     const earthGeo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const earthMat = new THREE.MeshPhongMaterial({
-      map:         texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg'),
-      normalMap:   texLoader.load('https://threejs.org/examples/textures/planets/earth_normal_2048.jpg'),
+      map:         texLoader.load('./images/earth_atmos_2048.jpg',    undefined, undefined, onTexError('./images/earth_atmos_2048.jpg')),
+      normalMap:   texLoader.load('./images/earth_normal_2048.jpg',   undefined, undefined, onTexError('./images/earth_normal_2048.jpg')),
       normalScale: new THREE.Vector2(0.85, 0.85),
-      specularMap: texLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg'),
+      specularMap: texLoader.load('./images/earth_specular_2048.jpg', undefined, undefined, onTexError('./images/earth_specular_2048.jpg')),
       specular:    new THREE.Color(0x4466aa),
       shininess:   30,
     });
@@ -562,7 +565,7 @@
     earthGroup.add(earthMesh);
 
     // ── Night lights (city glow on dark side) ────────────────────────────────
-    const nightTex = texLoader.load('./images/earth_night.jpg');
+    const nightTex = texLoader.load('./images/earth_night.jpg', undefined, undefined, onTexError('./images/earth_night.jpg'));
     nightTex.colorSpace = THREE.SRGBColorSpace;
     const nightMat = new THREE.ShaderMaterial({
       uniforms: {
@@ -617,7 +620,7 @@
     const MOON_RADIUS = 0.545;
 
     const moonGeo  = new THREE.SphereGeometry(MOON_RADIUS, 48, 48);
-    const moonTex  = texLoader.load('./images/moon_4k.jpg');
+    const moonTex  = texLoader.load('./images/moon_4k.jpg', undefined, undefined, onTexError('./images/moon_4k.jpg'));
     moonTex.colorSpace = THREE.SRGBColorSpace;
     const moonMat  = new THREE.MeshPhongMaterial({
       map:       moonTex,
